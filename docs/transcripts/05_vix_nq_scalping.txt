@@ -1,0 +1,183 @@
+================================================================
+SOCRATES INVESTMENTS — VIX + NQ CORRELATION SCALPING
+================================================================
+Video type: Live scalping demonstration
+Asset focus: NQ + VIX correlation
+Timeframe range covered: 5-minute (entry/exit)
+Approximate length: ~6 minutes
+Key topics: VIX-NQ inverse correlation as entry trigger, 5-min
+            scalping mechanics, scalp vs hold decision
+
+================================================================
+THE CORRELATION SETUP (HIS OWN WORDS, CLEANED)
+================================================================
+
+CORE THESIS:
+"On screen we have the VIX (volatility S&P) and the NASDAQ 100. I'm
+only going to leave it on the 5-minute timeframe for this. At first
+glance what are we seeing? I see that they're moving in complete
+opposite ways — and that's where I like to make trades."
+
+→ This is a defined SETUP: VIX and NQ moving inversely AT key levels
+  on the 5-min timeframe.
+
+THE SPECIFIC ENTRY (LIVE EXAMPLE):
+"NASDAQ is rejecting our Monday High while at the same time the VIX
+is starting to get some buying power up. So I'm going to enter a
+short based off of this information alone. We're at a key level, we
+rejected this once, twice, three times now, and it looks like the
+VIX is also at a lower-end level of demand. So if VIX breaks lower,
+my idea would clearly be shot and NQ would continue to rise up. We'll
+take an entry at our upper supply here and we'll keep note with this
+VIX down here."
+
+POSITION SIZING (SCALP):
+"We'll take a 2-lot entry. If I'm going to look to play stop losses,
+I'm only in two lots, it's a scalp. We can have it right above this
+Monday area because I only want a scalp."
+
+→ Scalp = small size + tight stop above the rejection structure
+
+MENTAL MODEL:
+"My thinking is okay, I see these changes of direction within our
+pivotal areas on the NASDAQ and I see it right here. All I need for
+this to continue pumping is for VIX to fully reach out and pivot from
+this zone, and that's pretty much all I would be worrying about
+during my scalping."
+
+PROFIT TAKE LOGIC:
+"We decided we wanted to scalp, so as soon as you saw 200 you could
+have taken profits and been out with your dick more."
+
+→ Scalp target = ~$200 profit per trade (with 2 lots NQ, that's
+  approximately 5 NQ points / $50 per contract × 2)
+
+================================================================
+LEVEL MARKING METHODOLOGY (CRITICAL FOR BUILD)
+================================================================
+
+"We can add in our lines. Same thing how I do on the 4H and 1H — I
+have multiple videos. On the 5 minute, areas where it looks like
+there is liquidity on the top and on the bottom. We need a horizontal
+line so we have an area right here, and I see an area right here, and
+here. We'll add it like right there. We have key levels at Monday in
+a previous weekly zone right by this pivotal area."
+
+→ He's marking liquidity zones manually on the 5-min based on visible
+  prior price reactions, not just relying on the indicator.
+
+ON CHART SETUP:
+"From here we're going to bounce off and potentially come back down
+to this zone right within this block. With the VIX I'm not really
+going to be adding the levels — I mean if we want to we could. We see
+I have our key level indicator already up on this side of the fence.
+If you wanted to also do the same thing on this side it would be no
+different — looking where price has been before."
+
+THE "MAGIC SAUCE":
+"That's kind of the magic sauce on what it is that I do. It doesn't
+got to be picture perfect — you just have to kind of have an image
+in your head on where price has been so you can get an image on where
+price wants to go."
+
+→ KEY INSIGHT: His method is pattern recognition based on prior price
+  reactions. Not mechanically defined zones. This is hard to fully
+  automate but the indicators approximate it.
+
+================================================================
+STRATEGY SUMMARY (HIS OWN WORDS)
+================================================================
+"The only thing that I looked at: I noticed how the VIX was falling.
+We came to a magnetic zone — this is a major key level — and I took
+an entry based on that flip."
+
+"This is how I make most of my trades. We reach a key level, we wait
+for a change of direction, we reach a key level wait to see some
+changes of direction and we enter. What's there to really think
+about?"
+
+PROFIT TAKING (NO UPPER PIVOT):
+"Right now I don't have any upper pivots close by in the 5 minute,
+so I will just take profits for $320."
+
+→ RULE: If no clear next pivot exists, take profits on the open
+  scalp profit.
+
+GENERAL DOCTRINE:
+"I wait for changes in direction. Pivots to pivots, key level to key
+level. And you can do this on any timeframe — the 1 minute to 5
+minute, the 1 hour, the 4 hour. It all caters to you and are you
+patient enough to be able to do this."
+
+================================================================
+DAILY ROUTINE CONFIRMATION
+================================================================
+"It is 8:18. I go live at 9:30 in my trading community, so we're
+already in profit for the day. If I was a beginner and I had to focus
+on scalping, this is what I would do: I would have the VIX and the
+NASDAQ up both next to each other so I can see the movements on a
+5-minute timeframe. I would get in and I would get out. And then I
+would go fill up this cup of coffee and go to the gym and enjoy my
+day. No need to overtrade."
+
+================================================================
+KEY EXTRACTABLE RULES
+================================================================
+
+1. VIX/NQ CORRELATION SETUP:
+   - VIX up + NQ at key resistance = SHORT NQ
+   - VIX down + NQ at key support = LONG NQ
+   - Confirmation: visible divergence in real-time on 5min chart
+
+2. ENTRY CRITERIA:
+   - NQ at marked key level (Monday high, weekly zone, etc.)
+   - Multiple rejection touches (1-3+ touches with rejection)
+   - VIX showing inverse momentum at its own opposing level
+
+3. STOP PLACEMENT:
+   - Just above/below the structural level being defended
+   - "Right above this Monday area" — clear and tight
+
+4. POSITION SIZE FOR SCALP:
+   - 2 lots NQ for scalp (per his example)
+   - Sized down vs his bigger swing trades
+
+5. PROFIT TARGETS:
+   - First profit zone: $200 area (5 NQ points × 2 lots = $200)
+   - Maximum scalp target: $320 (8 NQ points × 2 lots)
+   - Rule: If no next pivot visible, take profits on current zone
+
+6. CHART SETUP FOR BEGINNERS:
+   - Side-by-side VIX + NQ on 5-minute
+   - Key levels indicator on both
+   - Watch for inverse divergence
+
+7. POST-TRADE BEHAVIOR:
+   - "Get in, get out, go to gym"
+   - Explicit anti-overtrading doctrine
+
+================================================================
+BUILD IMPLICATIONS
+================================================================
+
+This transcript adds a CRITICAL setup type to the build:
+VIX/NQ DIVERGENCE ALERT
+
+For our system, this is a separate alert type from pure level-touch
+alerts. The logic:
+
+ALERT TRIGGER:
+- NQ at a marked key level (any of his indicators)
+- VIX at an opposing key level (also from indicators)
+- Movement in opposite directions in the last N candles
+- Volume confirmation on the NQ side
+
+ALERT PAYLOAD should include:
+- NQ price + which level it's testing
+- VIX price + which level it's at
+- Direction divergence strength (last 5 candles' correlation
+  coefficient inverted)
+- Suggested direction (long NQ if VIX rejects upper resistance, etc.)
+
+This is a high-value, distinct setup that can be coded reasonably
+mechanically.

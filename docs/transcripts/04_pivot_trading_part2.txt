@@ -1,0 +1,138 @@
+================================================================
+SOCRATES INVESTMENTS — PIVOT TRADING DEEP DIVE (PART 2)
+================================================================
+Video type: Strategy follow-up — pivot-specific
+Asset focus: NASDAQ (NQ)
+Timeframe range covered: 4H + 1H + 5min
+Approximate length: ~9.5 minutes
+Key topics: Pivot identification, entry/exit logic on pivots,
+            scalping vs holding, market structure reading
+
+================================================================
+CORE PIVOT METHODOLOGY (HIS OWN WORDS, CLEANED)
+================================================================
+
+CONTEXT — TRADE TAKEN EARLIER:
+"We took one trade today in the NASDAQ before. It was a nice win. We
+took a bounce off our lower demand. We noticed we weren't coming any
+lower, and look where I took my exit — I took it at the previous key
+level, our previous area where we pivoted."
+
+INDICATOR STACK CONFIRMED (SAME AS PRIOR VIDEOS):
+- Key Levels indicator (free)
+- Supply and Demand
+- Volume: Bull vs Bear by Arena (DGT)
+
+PIVOT DEFINITION (CRITICAL FOR BUILD):
+A pivot is "previous areas on higher time frames where price either
+broke above or broke below or changed direction. Could be for a
+second, could be for a minute, but that's all I need."
+
+→ This is a key build rule: PIVOTS = previous price action turning
+  points visible on higher timeframes. NOT the floor-trader pivot
+  calculation. He uses the term loosely to mean structural pivots.
+
+ENTRY LOGIC (NQ EXAMPLE):
+"Let's say we entered long here at this previous week low — which is
+a previous area where we kind of pivoted (look on previous price
+history). I would need volume, and I would look to take my exits
+based on these pivots."
+
+EXIT LOGIC:
+"One of my TPs we could mark out a line right here — this would be a
+potential area for me to take profits based on these areas where
+price changed direction for a minute, and that's it."
+
+ON CONTINUATION:
+"A lot of people probably say 'how do you know when to continue to
+hold?' That comes into hand with how much money are you looking to
+make. Are you a scalper? What I would look for to continue these
+breakouts would only be volume. My only thoughts when we approach
+other key levels: are we going to continue higher, are we going to
+retest? There's nothing really else to think about. If the volume is
+following suit, then we can play the game."
+
+================================================================
+MARKET STRUCTURE READING
+================================================================
+
+TREND STRUCTURE:
+"When we're in trends, we'll create higher lows, higher lows, higher
+lows, until price will reach some sort of previous area of demand."
+
+RANGE STRUCTURE:
+"On the 1 hour we're in this range from our lower demand to mid zone,
+and we've kind of been not creating any other areas until we fully
+broke out and touched our previous area of supply."
+
+DOUBLE TOP RECOGNITION:
+"We have a double top on a 1-hour timeframe. People — based on this,
+we're not creating any downfalls. This is a key area right here. Based
+on economic news, we might want to come all the way back down to these
+previous pivots."
+
+REJECTION READ:
+"Look what happened when we reached an previous area of upper supply
+— last time we reached this area, it rejected heavy. So what does
+that tell me in my mind?"
+
+================================================================
+DAY-OF-WEEK FILTER (IMPORTANT)
+================================================================
+"Today is Friday when I'm making this video. On Friday you really
+won't get the best price actions. You can make some good trades on
+Friday but keep in mind your system won't work every day. When I see
+movement like this on a higher time frame, it kind of generates some
+sort of fear for me."
+
+→ BUILD RULE: Friday afternoon should be down-weighted or filtered
+  in alert scoring. He explicitly identifies it as a low-edge period.
+
+================================================================
+PSYCHOLOGY OF PIVOT TRADING
+================================================================
+
+"Anytime we're near a pivot, we can't have this anticipation. With my
+style I'm either right or I'm wrong. Are we at a key level and is
+there volume? That's the only thing I need."
+
+"I'm using pattern history, price action history, with current price
+action by key levels, supply and demand, with volume. That's pretty
+much all I need."
+
+ON CHOP DAYS:
+"In days where we're chopping in between, I really don't have any
+trades. I would be looking for: are we bouncing through key levels
+with volume? That is it."
+
+================================================================
+KEY EXTRACTABLE RULES
+================================================================
+1. PIVOT DEFINITION: Previous price action turning points on higher
+   timeframes — NOT floor-trader pivot calculation
+2. ENTRY = Pivot + Volume confirmation
+3. EXIT = Next pivot (where price previously changed direction)
+4. CONTINUATION CHECK = Volume at the next key level
+5. STRUCTURE READING:
+   - Trend = higher lows / lower highs sequence
+   - Range = bouncing between supply and demand
+   - Double top/bottom = exhaustion signal
+   - Heavy rejection at level = strong S/R going forward
+6. FRIDAY FILTER: Down-weight Friday afternoon alerts (his stated
+   low-edge period)
+7. CHOP DAYS: No setup until clean break of a key level with volume
+
+================================================================
+BUILD IMPLICATIONS
+================================================================
+For our Pine Script alert system, this means:
+
+1. We need pivot HIGH/LOW detection — pivots based on price-action
+   reversal points on higher timeframes (4H/1H), not standard floor
+   pivots
+2. Volume confirmation is non-negotiable — every alert must include
+   a volume strength check from the Bull vs Bear indicator
+3. Day-of-week filter belongs in n8n enrichment — flag Friday
+   afternoon alerts as lower priority
+4. Confluence engine should weight: pivot proximity + supply/demand
+   zone proximity + volume confirmation

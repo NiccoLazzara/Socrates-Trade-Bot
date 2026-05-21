@@ -1,0 +1,129 @@
+================================================================
+SOCRATES INVESTMENTS — INDICATOR BREAKDOWN VIDEO
+================================================================
+Video type: Dedicated indicator explanation
+Asset focus: Gold (used as demo)
+Timeframe range covered: 4H + 5min
+Approximate length: ~9 minutes
+Key topics: Each indicator explained individually with TradingView
+            search terms and rationale
+
+*** THIS IS THE MOST IMPORTANT TRANSCRIPT FOR THE BUILD ***
+*** Contains exact indicator names, creators, and search terms ***
+
+================================================================
+COMPLETE INDICATOR STACK (HIS EXACT WORDS)
+================================================================
+
+#1 — KEY LEVELS by Trading Wolf
+- Search term in TradingView: "key levels"
+- Use: First indicator that pops up by Trading Wolf
+- Function: Marks daily open, daily low, AVWAP levels, moving averages
+- Why: "Visually pleasing" + auto-marks levels he would otherwise draw
+  by hand. Removes manual work.
+
+#2 — KEY LEVELS by Spaceman
+- Search term: "key levels" (second result)
+- Use: Alternative/complementary key levels indicator
+- Function: Visual key levels (slightly different display style)
+- Why: Both Spaceman and Trading Wolf are visually pleasing. Uses both.
+
+KEY DIFFERENCE between the two:
+"Trading Wolf will add your daily open and your daily low, and it will
+add your AVWAP levels, your average moving averages — so if you like
+to look at moving averages it could be useful."
+
+#3 — BULL vs BEAR by Arena (DGT)
+- Search term: "bull verse bear"
+- Use: First result that pops up
+- Function: Volume strength indicator showing bull-side vs bear-side
+  strength with percentages
+- Why: "Just showing me the bull side and the bear side strength. It's
+  visually pleasing. I like to see the percentages — I don't know why
+  but it'll tell you the trend. If you like your ADX and all that other
+  jazz, good for you, I don't really use it. But I like to see the
+  flips and the volume and the switches and the velocity and how it's
+  moving."
+
+#4 — ORDER DOM (TradingView native)
+- Not a Pine Script — native TradingView feature
+- Use: Aligned with chart analysis to see where volume is being tagged
+- Function: Shows live volume at each price level
+- Why: Identifies where supply is being generated or where demand will
+  stop
+
+#5 — ICT KILL ZONES by LuxAlgo
+- Search term: "ICT kill zones"
+- Use: First result, by LuxAlgo
+- Function: Highlights Asian, London, and New York session windows
+- Why: "I like to know where key levels are — a key level for me would
+  be where New York opened and closed, where London opened and closed."
+- Methodology: Reviews each session's behavior — did Asian session
+  range or break out? Did London range or trend? Uses this to inform
+  the NY session bias.
+
+#6 — SUPPLY AND DEMAND (Visible Range) by LuxAlgo
+- Search term: "supply and demand"
+- Use: First result, "Supply and Demand Visible Range by LuxAlgo"
+- Function: Auto-plots supply and demand zones in the visible range
+- Why: "Visually shows you the supply and the demand where you could
+  also take potential entries and exits."
+
+================================================================
+CONFIRMATION QUOTE — TRADING METHODOLOGY
+================================================================
+"My style of trading — I am a supply and demand or pivot trader based
+on pivots near key levels. That's the only thing I look at when I'm
+trading."
+
+"All I need is strong volume. That is all I need."
+
+"My entries on the smaller time frames are the 5 minute and 1 hour
+for my entries, and 4-hour, weekly, and daily for my charting."
+
+================================================================
+TRADING SESSION DETAILS
+================================================================
+"I trade 4 to 5 days out of the week from 9:30 to around 11:00 to
+12:00. Reason why it's so short is because we usually make our profit
+or we are following our rules and not overtrading because we've
+suffered losses."
+
+================================================================
+CRITICAL CONFIRMATION FOR BUILD
+================================================================
+"Each one of these indicators are free. There's no reason to go sit
+there and pay money for indicators."
+
+"My system will stay the same no matter if I'm in an eval account, to
+a funded account, to my personal account. My strategy and system will
+not change."
+
+================================================================
+KEY EXTRACTABLE RULES
+================================================================
+1. EXACT INDICATOR STACK (6 items):
+   - Key Levels by Trading Wolf
+   - Key Levels by Spaceman
+   - Bull vs Bear by Arena (DGT)
+   - Order DOM (TV native)
+   - ICT Kill Zones by LuxAlgo
+   - Supply and Demand Visible Range by LuxAlgo
+
+2. ALL INDICATORS ARE FREE — no LuxAlgo Premium needed,
+   no paid Pine Scripts
+
+3. CORE EDGE: Supply/demand zones + pivots near key levels +
+   volume confirmation
+
+4. PRIMARY TIMEFRAMES:
+   - Entries: 5min, 1H
+   - Charting/bias: 4H, Daily, Weekly
+
+5. TRADING WINDOW: 9:30 AM - 11:00 AM/12:00 PM ET (4-5 days/week)
+
+6. CORRELATION CHECKS (mandatory):
+   - Gold setups: DXY + other precious metals
+   - NQ setups: NVDA, SPY, VIX, Mag7, big tech
+
+7. SYSTEM INVARIANCE: Same setup across eval, funded, personal accounts

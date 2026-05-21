@@ -1,0 +1,152 @@
+================================================================
+SOCRATES INVESTMENTS — TRANSCRIPT LIBRARY INDEX
+================================================================
+Prepared: May 2026
+For: Nicco Lazzara, LPI
+Purpose: Source material for Confluence Alert Engine build
+
+================================================================
+FILE INDEX
+================================================================
+
+01_strategy_walkthrough_gold_nq.txt
+  - Full multi-timeframe strategy walkthrough
+  - Asset: Gold + NQ
+  - Length: ~26 min
+  - Best for: Overall methodology, timeframe hierarchy, philosophy
+
+02_indicator_breakdown.txt        ★ MOST IMPORTANT FOR BUILD ★
+  - Dedicated indicator-by-indicator explanation
+  - Exact names, creators, search terms for all 6 tools
+  - Length: ~9 min
+  - Best for: Pine Script build, TradingView setup
+
+03_livestream_qa_tail.txt
+  - End of livestream Q&A session
+  - Mostly mindset content + methodology reinforcement
+  - Length: ~4 min captured
+  - Best for: Psychology section, doctrine confirmation
+
+04_pivot_trading_part2.txt
+  - Pivot identification and entry/exit logic
+  - Asset: NQ
+  - Length: ~9.5 min
+  - Best for: Pivot detection rules, structure reading,
+    Friday filter
+
+05_vix_nq_scalping.txt
+  - VIX/NQ correlation scalping setup
+  - Asset: NQ + VIX
+  - Length: ~6 min
+  - Best for: VIX divergence alert type, scalp mechanics
+
+================================================================
+COMPLETE INDICATOR STACK (FROM ALL TRANSCRIPTS)
+================================================================
+
+1. Key Levels by Trading Wolf (free)
+2. Key Levels by Spaceman (free)
+3. ICT Kill Zones by LuxAlgo (free)
+4. Supply and Demand Visible Range by LuxAlgo (free)
+5. Bull vs Bear by Arena/DGT (free) — volume indicator
+6. Order DOM (TradingView native) — order flow at price
+
+Total cost: $0 in indicators
+Required subscription: TradingView Pro+ ($25/mo) for webhook alerts
+
+================================================================
+EXTRACTED SETUP TYPES (ALERT CATEGORIES)
+================================================================
+
+SETUP A — KEY LEVEL + VOLUME (most common)
+- Price approaches a key level (Daily/Weekly/Monthly H/L/Open)
+- Bull vs Bear indicator shows momentum/volume confirmation
+- Entry on confirmation (rejection wick, momentum stall)
+
+SETUP B — SUPPLY/DEMAND ZONE BOUNCE
+- Price tags a fresh LuxAlgo supply/demand zone
+- Volume confirms rejection
+- Entry on confirmation candle
+
+SETUP C — PIVOT-TO-PIVOT
+- Identified prior reversal point on higher TF (4H/1H)
+- Price approaches this pivot
+- Volume confirms reaction
+- Target = next pivot
+
+SETUP D — VIX/NQ DIVERGENCE (scalp)
+- VIX and NQ at opposing levels on 5-min
+- Clear inverse movement in recent candles
+- Tight scalp with $200-$320 target
+
+SETUP E — DAILY HIGH/LOW RETEST (his stated favorite)
+- Price retests prior daily high or low
+- Volume confirmation
+- Distribution-style entry
+
+================================================================
+CRITICAL TIMING RULES
+================================================================
+
+PRIMARY TRADING WINDOW:
+  9:30 AM - 11:00 AM/12:00 PM ET
+
+PREDICTIVE WINDOW (per his back-test claim):
+  9:15 - 9:40 AM ET defines NY session direction
+
+FRIDAY FILTER:
+  Friday afternoon = down-weight alerts (his stated low-edge time)
+
+SESSION CONTEXT (from ICT Kill Zones):
+  - Asian session: range/consolidation read
+  - London session: range or trend setup
+  - NY session: primary action window
+
+================================================================
+RISK MANAGEMENT FROM TRANSCRIPTS
+================================================================
+
+POSITION SIZING:
+  - Scalp = 2 lots NQ
+  - Don't size up until you can lose $1,000 emotionally unaffected
+
+DAILY P&L TARGET:
+  - $2,000-$5,000/day baseline
+  - Lower target on rough days, raise on hot days
+
+STOP DOCTRINE:
+  - "If we have a plan we can never lose. If it goes against me,
+    we close the trade and move on."
+  - Stops must be mechanical, not negotiable
+
+OVERTRADING PREVENTION:
+  - Hard stop at 11:00-12:00 ET
+  - "Get in, get out, go to gym"
+
+================================================================
+CORRELATION PAIRS (MANDATORY CHECKS)
+================================================================
+
+WHEN TRADING GOLD:
+  - DXY (Dollar Index)
+  - Other precious metals (silver, platinum)
+
+WHEN TRADING NQ:
+  - SPY
+  - VIX
+  - NVDA
+  - QQQ
+  - Magnificent 7 stocks
+  - Other big tech
+
+================================================================
+NEXT STEPS
+================================================================
+
+1. ✅ Transcripts cleaned and structured (this file index)
+2. ⏳ Upload to Project (Socrates Investments Education Free)
+3. ⏳ Start Chat #1 in Project: "Rules Extraction"
+4. ⏳ Output: socrates_rules_spec.md
+5. ⏳ Upgrade TradingView to Pro+ ($25/mo)
+6. ⏳ Load all 6 indicators on NQ chart
+7. ⏳ Start Chat #2 in Project: "Pine Script Alert Conditions"

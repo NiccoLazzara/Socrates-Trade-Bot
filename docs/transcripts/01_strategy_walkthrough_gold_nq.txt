@@ -1,0 +1,169 @@
+================================================================
+SOCRATES INVESTMENTS — STRATEGY WALKTHROUGH (GOLD + NQ)
+================================================================
+Video type: Full strategy explanation
+Asset focus: Gold (primary), NASDAQ (secondary)
+Timeframe range covered: Weekly → Daily → 4H → 1H → 15m → 5m
+Approximate length: ~26 minutes
+Key topics: Indicators, timeframe hierarchy, bias formation, entries/exits,
+            correlation tools, session timing, psychology
+
+================================================================
+INDICATORS NAMED (CRITICAL FOR BUILD)
+================================================================
+- Supply and Demand by LuxAlgo (free)
+- Key Levels (free) — used on multiple timeframes
+- ICT Kill Zones (free)
+- Spaceman Key Levels (free)
+- Volume indicator: Arena by DGT (Bull vs Bear strength)
+- Order DOM on TradingView (for order flow at price)
+
+================================================================
+CORE METHODOLOGY (HIS OWN WORDS, CLEANED)
+================================================================
+
+OPENING — Indicator overview:
+Working on a weekly chart. Indicators on screen: Supply and Demand by
+LuxAlgo (free), Key Levels (free), ICT Kill Zones (free), Spaceman Key
+Levels (free). Volume indicator at bottom is Arena by DGT — shows
+strength of buying vs selling with a percentage box. Visually pleasing
+but essentially tracking buy/sell strength on the candles.
+
+TRADER IDENTITY:
+"I'm a trader where I wait for breaks and trends, I wait for pivots,
+I wait for supply and demand, or you can trade our daily high retest
+breaks. My main go-to strategy would be waiting for a daily high or
+daily open — we would retest that and then distribute after that."
+
+PRE-TRADE ROUTINE:
+1. Coffee first.
+2. Check the news — Discord community has Futures Trading news links,
+   Forex.com economic calendars, and earnings calendar links.
+3. Focus on Gold (primary) and NQ (secondary). Used to trade platinum
+   and crude oil, narrowed down because more than 2 assets created
+   stress and noise.
+4. For Gold: also watch the Dollar (DXY) and other precious metals.
+5. For NQ: watch NVDA, SPY, VIX, Magnificent 7, big tech stocks.
+
+DAILY CHART APPROACH:
+- Key levels are pre-marked by the indicator — doesn't manually draw.
+- Watches how price reacts at each key level.
+- When price reaches a level with "money resting" or "order blocks"
+  or "liquidity," he calls it "market chop" — staying between levels.
+- Price either bounces between levels or breaks to a new range.
+
+CORE PHILOSOPHY:
+"My methodology and psychology on trading is so simple. If the volume's
+there, it's going to move. If the volume's not there, it's not going
+to move. All we have to do is be on the right side of the move when
+the move is happening."
+
+ON OTHER INDICATORS:
+"I've tried every other indicator there is in the book. Almost every
+indicator is lagged. So does that really help us when we need current
+price action?"
+
+ORDER DOM USAGE:
+"The only thing I would be looking for at the DOM is — there's usually
+numbers to the low end and to the high end with higher volume. I see
+what numbers keep being bounced back and forth with higher volume,
+aligned with the charts, and see where supply is being generated or
+where demand is going to stop."
+
+GOLD TRADE EXAMPLE (LIVE):
+- Price came back to a major daily key level.
+- His favorite entry points: daily open, daily high, daily low.
+- Identified that gold reached the monthly high — possible loss of
+  momentum.
+- All he needs to enter: "Volume — I need volume to enter near any
+  sort of key level."
+
+4-HOUR APPROACH:
+Same concept as other timeframes. Looking for bounces/breaks at key
+levels with volume. The 4H showed Gold broke daily low and monthly
+open price, then bounced at the daily low key level.
+
+ON GAPS / FAIR VALUE GAPS:
+"Some might call it missed entries, liquidity resting, or orders that
+might be there. I just call it a gap because I don't need to call it
+anything else."
+
+ON MARKET MOVEMENT:
+"The only reason any of this is ever moving is human sentiment. Someone
+somewhere is pressing a buy and sell button. It could be us degen
+retail traders, or it could be your big banks, institutions, groups
+doing this in calculated algorithmic moves. They know retail traders
+sit there trying to come up with all these terms when realistically
+price is reacting to human sentiment."
+
+ADVICE FOR BEGINNERS:
+"Focus on how news affects the market. How do people spend money
+during turmoil, recession, high inflation. That gives you an edge on
+how money flows."
+
+SESSION TIMING (IMPORTANT):
+"When trading gold, through the day, New York open to close, whatever
+trend or way the money was going during those sessions will always
+follow suit around the Asian market time around 9:15 to 9:35 to 9:45.
+Every time between 9:15 and 9:40, the market session will follow the
+trend within the entirety of the New York session. I found high
+accuracy just trading that alone."
+
+1-HOUR APPROACH:
+"Lately I've been getting entries on the 1-hour timeframe alone. I
+like to get entries on the 5-minute but we're not there yet."
+
+ON CONFLUENCE / CHANGING BIAS:
+"On the 4H my bias was longs. On the 1H it changed because price came
+to a daily high, touched it twice, quickly fell and rejected. Sellers
+came in, buyers tried to fight back at another key level (an AVWAP
+level). Buyers tried to stop sellers — retail traders probably thought
+'oh it's an FVG, it's a retest, let's buy.' Dumb money bought there
+because they saw an FVG form on the 1H. Scalpers probably made money,
+but average gamblers who hold trades got [stopped out]."
+
+15-MIN AND 5-MIN APPROACH:
+"The 5-minute is where I use my entries. This is my entry point. All
+I need to do is be near a key level — daily levels are my favorite
+zones."
+
+ON SMALLER TIMEFRAME NOISE:
+"On the 5 minute it would be our demand. Price doesn't really know
+where it wants to go. We had a spike, probably had volume, what time
+was this — yes there was volume that came in. Probably power hour or
+something. It quickly died off."
+
+DAILY P&L TARGETS:
+"My strategy / system is I like to target between $2,000 and $5,000
+a day depending on market conditions. If my setups are not showing up
+and my first trade was rough, my confidence will be different — I'll
+lower my target based on confidence. When I'm in wins, mindset is
+different, I raise my target."
+
+ON RISK:
+"You shouldn't be taking any unnecessary risks until you can afford
+to say 'I can sit here and lose $1,000 and it's not going to affect
+me.' When you get to that level, that's when you can take more risks."
+
+PSYCHOLOGY OVER CHARTING:
+"For me, charting does not outweigh the psychology of trading. Now
+that you've seen on my charts how price reacts at certain key levels,
+it's: do I have the confidence to enter when I first see that switch?
+Do I have that anticipation? What is going on in my mind?"
+
+================================================================
+KEY EXTRACTABLE RULES
+================================================================
+1. Indicator stack (6 tools) — all free, all named above
+2. Asset focus: Gold + NQ only (max 2 assets)
+3. Correlation pairs:
+   - Gold: watch DXY + other precious metals
+   - NQ: watch NVDA, SPY, VIX, Mag7
+4. Timeframe hierarchy: Weekly/Daily for bias, 4H/1H for setup, 5min
+   for entry
+5. Entry trigger: Price at key level + volume confirmation
+6. Favorite levels: Daily open, daily high, daily low
+7. Session edge: 9:15-9:40 AM ET window predicts NY session direction
+8. Daily P&L target: $2,000-$5,000, scaled by confidence
+9. Risk principle: Don't size up until you can lose $1,000 without
+   it affecting you emotionally

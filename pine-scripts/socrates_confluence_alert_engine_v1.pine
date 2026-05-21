@@ -1,0 +1,1247 @@
+// ============================================================================
+//  SOCRATES CONFLUENCE ALERT ENGINE — v1.0
+//  Pine Script v5
+//
+//  Implements: Setups A, B, C, E from socrates_rules_spec.md v1.0
+//  Defers:     Setup D (VIX/NQ cross-symbol divergence — v1.1)
+//
+//  Source spec sections referenced inline as "Spec §X".
+//  Every [BUILD DEFAULT] from the spec is exposed as an input() so values
+//  can be tuned in TradingView's settings panel without editing code.
+//
+//  Output: JSON payload matching Appendix A of the spec, emitted via
+//  alert(..., alert.freq_once_per_bar_close) when grade != "C".
+//
+//  Run on: 5-minute chart of NQ1!, MNQ1!, ES1!, MES1!, GC1!, or MGC1!.
+//  (Other intraday timeframes work but 5m is the spec's primary entry TF.)
+// ============================================================================
+
+//@version=5
+indicator(
+   title              = "Socrates Confluence Alert Engine v1.0",
+   shorttitle         = "SCAE_v1",
+   overlay            = true,
+   max_boxes_count    = 500,
+   max_lines_count    = 500,
+   max_labels_count   = 500
+   )
+
+// ============================================================================
+// SECTION 0 — INPUTS (all [BUILD DEFAULT] constants from spec)
+// ============================================================================
+
+// ----- Asset class -----
+g_asset = "Asset"
+i_assetMode = input.string("AUTO", "Asset class", options=["AUTO","NQ","ES","GC"], group=g_asset, tooltip="AUTO detects from syminfo.ticker.")
+
+// ----- Setup A: Key level proximity (Spec §3 Setup A) -----
+g_setupA = "Setup A — Key Level + Volume (Spec §3)"
+i_proxTicksNQ      = input.int(5,   "NQ level proximity (ticks)",  minval=1, group=g_setupA)
+i_proxTicksES      = input.int(3,   "ES level proximity (ticks)",  minval=1, group=g_setupA)
+i_proxTicksGC      = input.int(2,   "GC level proximity (ticks)",  minval=1, group=g_setupA)
+i_rejectionWickPct = input.float(0.40,"Min rejection wick % of bar range", minval=0.05, maxval=0.95, step=0.05, group=g_setupA)
+
+// ----- Setup B: Supply/Demand zones (Spec §3 Setup B) -----
+g_setupB = "Setup B — Supply/Demand Zone (Spec §3)"
+i_zoneFreshnessBars     = input.int(30,  "Zone freshness — bars since last tag", minval=5, group=g_setupB)
+i_zoneFreshBonusBars    = input.int(50,  "Zone 'extra fresh' bonus — bars since formation", minval=10, group=g_setupB, tooltip="Per Spec §9: zone untagged for 50+ bars adds +1 confluence point.")
+i_zoneConsolBars        = input.int(3,   "Min consolidation bars before impulse", minval=2, group=g_setupB)
+i_zoneImpulseAtrMult    = input.float(2.0,"Impulse move size (× ATR14)", minval=0.5, step=0.25, group=g_setupB)
+i_zoneMaxActive         = input.int(20,  "Max active zones tracked", minval=5, maxval=50, group=g_setupB)
+
+// ----- Setup C: Structural pivots (Spec §3 Setup C) -----
+g_setupC = "Setup C — Pivot-to-Pivot (Spec §3)"
+i_pivotN_1H        = input.int(5, "1H pivot N (bars left/right)", minval=2, group=g_setupC)
+i_pivotN_4H        = input.int(3, "4H pivot N (bars left/right)", minval=2, group=g_setupC)
+i_pivotProxTicks   = input.int(5, "Pivot proximity (ticks)",      minval=1, group=g_setupC)
+
+// ----- Setup E: Daily H/L retest (Spec §3 Setup E) -----
+g_setupE = "Setup E — Daily H/L Retest (Spec §3)"
+i_setupEBreakAtrMult = input.float(1.0, "Break confirmation (× 5min ATR14)", minval=0.25, step=0.25, group=g_setupE)
+i_setupERetestTicks  = input.int(5,     "Retest proximity (ticks)",          minval=1, group=g_setupE)
+
+// ----- Bull vs Bear / Volume confirmation (Spec §10) -----
+g_vol = "Volume Confirmation (Spec §10)"
+i_bvbLookback           = input.int(14,   "Bull vs Bear lookback bars",         minval=2, group=g_vol)
+i_bvbSmoothing          = input.int(3,    "Bull vs Bear EMA smoothing",         minval=1, group=g_vol)
+i_volStrengthMinDelta   = input.float(10.0,"Min Bull/Bear strength delta (pp)", minval=0, step=1.0, group=g_vol)
+i_volStrengthBonusDelta = input.float(20.0,"Bonus strength delta (pp) — +1 confluence", minval=0, step=1.0, group=g_vol)
+i_volSidedDom           = input.float(60.0,"Dominant side threshold (%)",       minval=50, maxval=100, group=g_vol)
+i_volMinBarMult         = input.float(1.5, "Min bar volume vs 20-bar avg",      minval=0.5, step=0.1, group=g_vol)
+i_volVetoMult           = input.float(0.7, "Volume veto threshold (× 20-bar avg)", minval=0.1, maxval=1.0, step=0.05, group=g_vol)
+i_volVelocityDelta      = input.float(15.0,"Velocity bonus delta (pp over 3 bars)", minval=0, step=1.0, group=g_vol)
+
+// ----- Bias detection (Spec §2) -----
+g_bias = "Bias / Trend Detection (Spec §2)"
+i_biasEmaLength    = input.int(20, "Bias EMA length",            minval=2,  group=g_bias)
+i_biasStructBars   = input.int(10, "Bias structure lookback",    minval=3,  group=g_bias)
+i_biasOpposeAtrMult= input.float(2.0,"Strong oppose threshold (× ATR away from EMA)", minval=0.5, step=0.25, group=g_bias)
+
+// ----- Session filters (Spec §7) -----
+g_sess = "Session Filters (Spec §7) — all times ET"
+i_primaryStartHr   = input.int(9,  "Primary start hour",  minval=0, maxval=23, group=g_sess)
+i_primaryStartMin  = input.int(30, "Primary start min",   minval=0, maxval=59, group=g_sess)
+i_primaryEndHr     = input.int(11, "Primary end hour",    minval=0, maxval=23, group=g_sess)
+i_primaryEndMin    = input.int(0,  "Primary end min",     minval=0, maxval=59, group=g_sess)
+i_secondaryStartHr = input.int(13, "Secondary start hour",minval=0, maxval=23, group=g_sess)
+i_secondaryStartMin= input.int(30, "Secondary start min", minval=0, maxval=59, group=g_sess)
+i_secondaryEndHr   = input.int(15, "Secondary end hour",  minval=0, maxval=23, group=g_sess)
+i_secondaryEndMin  = input.int(45, "Secondary end min",   minval=0, maxval=59, group=g_sess)
+i_suppressOpenMins = input.int(5,  "Suppress first N minutes of RTH", minval=0, maxval=60, group=g_sess)
+i_fridayPmDowngrade= input.bool(true,"Friday after 11:00 ET — downgrade one grade", group=g_sess)
+i_suppressMidday   = input.bool(true,"Suppress 12:00–13:30 ET midday entirely",     group=g_sess)
+
+// ----- Cooldown (Spec §4) -----
+g_cool = "Alert Cooldown (Spec §4)"
+i_cooldownBars = input.int(10, "Cooldown bars per setup/symbol combo", minval=1, group=g_cool)
+
+// ----- Correlation (Spec §8) -----
+g_corr = "Correlation Check (Spec §8)"
+i_corrLookback     = input.int(20,  "Correlation lookback bars", minval=5, group=g_corr)
+i_corrPosThresh    = input.float(0.6,  "Positive correlation threshold", minval=0.3, maxval=1.0, step=0.05, group=g_corr)
+i_corrNegThresh    = input.float(-0.6, "Negative correlation threshold", minval=-1.0, maxval=-0.3, step=0.05, group=g_corr)
+
+// ----- Correlated symbols (Spec §8) -----
+g_sym = "Correlated Symbols (Spec §8)"
+i_sym_SPY  = input.symbol("AMEX:SPY",      "SPY symbol  (NQ/ES pair)", group=g_sym)
+i_sym_VIX  = input.symbol("CBOE:VIX",      "VIX symbol  (NQ/ES inverse pair)", group=g_sym)
+i_sym_NVDA = input.symbol("NASDAQ:NVDA",   "NVDA symbol (NQ pair)", group=g_sym)
+i_sym_QQQ  = input.symbol("NASDAQ:QQQ",    "QQQ symbol  (NQ pair)", group=g_sym)
+i_sym_DXY  = input.symbol("TVC:DXY",       "DXY symbol  (GC inverse pair)", group=g_sym)
+i_sym_SI   = input.symbol("COMEX:SI1!",    "SI symbol   (GC positive pair)", group=g_sym)
+
+// ----- Grading thresholds (Spec §9) -----
+g_grade = "Confluence Grade Thresholds (Spec §9)"
+i_gradeAPlusMin = input.float(6.0, "A+ minimum points",  minval=3, step=0.5, group=g_grade)
+i_gradeAMin     = input.float(4.0, "A  minimum points",  minval=2, step=0.5, group=g_grade)
+i_gradeBMin     = input.float(3.0, "B  minimum points",  minval=1, step=0.5, group=g_grade)
+
+// ----- Predictive window — Gold only (Spec §7b) -----
+g_pred = "Predictive Window — Gold only (Spec §7b)"
+i_predStartHr   = input.int(9,  "Predictive window start hour ET", minval=0, maxval=23, group=g_pred)
+i_predStartMin  = input.int(15, "Predictive window start min ET",  minval=0, maxval=59, group=g_pred)
+i_predEndHr     = input.int(9,  "Predictive window end hour ET",   minval=0, maxval=23, group=g_pred)
+i_predEndMin    = input.int(40, "Predictive window end min ET",    minval=0, maxval=59, group=g_pred)
+
+// ----- Display / debug -----
+g_disp = "Display"
+i_drawLevels  = input.bool(true,  "Draw key levels on chart", group=g_disp)
+i_drawZones   = input.bool(true,  "Draw active S/D zones",    group=g_disp)
+i_drawPivots  = input.bool(true,  "Plot structural pivots",   group=g_disp)
+i_debugLabels = input.bool(false, "Show debug labels on alert fires", group=g_disp)
+
+
+// ============================================================================
+// SECTION 1 — HELPER FUNCTIONS (Spec §"Build sequence" step 1)
+// ============================================================================
+
+// --- Asset detection -----------------------------------------------------
+// Returns "NQ", "ES", "GC", or "OTHER" based on the chart's ticker.
+detectAsset() =>
+    t = syminfo.ticker
+    a = "OTHER"
+    if str.contains(t, "NQ")
+        a := "NQ"
+    if str.contains(t, "ES") and not str.contains(t, "MES1") == false
+        a := a == "OTHER" ? "ES" : a
+    if str.contains(t, "ES") and a == "OTHER"
+        a := "ES"
+    if str.contains(t, "GC") or str.contains(t, "MGC")
+        a := "GC"
+    a
+
+activeAsset = i_assetMode == "AUTO" ? detectAsset() : i_assetMode
+
+// --- Dollar-per-point detection -----------------------------------------
+// Used to translate stop/target distances into $/contract in the payload.
+detectDollarPerPoint() =>
+    t = syminfo.ticker
+    if str.startswith(t, "MNQ")
+        2.0
+    else if str.contains(t, "NQ")
+        20.0
+    else if str.startswith(t, "MES")
+        5.0
+    else if str.contains(t, "ES")
+        50.0
+    else if str.startswith(t, "MGC")
+        10.0
+    else if str.contains(t, "GC")
+        100.0
+    else
+        1.0
+
+dollarPerPoint = detectDollarPerPoint()
+
+// --- Asset-specific tick proximity --------------------------------------
+proxTicks    = activeAsset == "NQ" ? i_proxTicksNQ : activeAsset == "ES" ? i_proxTicksES : activeAsset == "GC" ? i_proxTicksGC : i_proxTicksNQ
+proxDistance = proxTicks * syminfo.mintick
+
+// --- Time / session helpers (ET timezone) -------------------------------
+TZ = "America/New_York"
+
+etHour  = hour(time, TZ)
+etMin   = minute(time, TZ)
+etDOW   = dayofweek(time, TZ)        // 1=Sun, 7=Sat
+
+// Build minutes-since-midnight to make window comparisons cleaner.
+etMinutesOfDay = etHour * 60 + etMin
+
+primaryStartMOD  = i_primaryStartHr   * 60 + i_primaryStartMin
+primaryEndMOD    = i_primaryEndHr     * 60 + i_primaryEndMin
+secondaryStartMOD= i_secondaryStartHr * 60 + i_secondaryStartMin
+secondaryEndMOD  = i_secondaryEndHr   * 60 + i_secondaryEndMin
+predStartMOD     = i_predStartHr      * 60 + i_predStartMin
+predEndMOD       = i_predEndHr        * 60 + i_predEndMin
+
+isWeekday      = etDOW >= 2 and etDOW <= 6   // Mon-Fri
+isFriday       = etDOW == 6
+
+inRthSession   = not na(time(timeframe.period, "0930-1600", TZ))
+inOvernight    = not inRthSession
+
+inOpeningSuppress = inRthSession and etMinutesOfDay >= (9*60+30) and etMinutesOfDay < (9*60+30 + i_suppressOpenMins)
+inPrimaryWindow   = etMinutesOfDay >= primaryStartMOD   and etMinutesOfDay <  primaryEndMOD
+inSecondaryWindow = etMinutesOfDay >= secondaryStartMOD and etMinutesOfDay <  secondaryEndMOD
+inMidday          = etMinutesOfDay >= (12*60)            and etMinutesOfDay <  (13*60 + 30)
+isFridayPm        = isFriday and etMinutesOfDay >= (11*60)
+inPredictiveWindow= etMinutesOfDay >= predStartMOD       and etMinutesOfDay <  predEndMOD
+
+// Session label for payload
+sessionWindow = inPrimaryWindow ? "primary" : inSecondaryWindow ? "secondary" : inMidday ? "midday" : inRthSession ? "rth_other" : "overnight"
+
+// ICT-style zone label (rough)
+ictZone = etMinutesOfDay >= (9*60+30) and etMinutesOfDay < (10*60+30) ? "ny_open" : etMinutesOfDay >= (10*60+30) and etMinutesOfDay < (12*60) ? "ny_morning" : etMinutesOfDay >= (12*60) and etMinutesOfDay < (16*60) ? "ny_afternoon" : etMinutesOfDay >= (3*60) and etMinutesOfDay < (8*60) ? "london" : etMinutesOfDay >= (20*60) or etMinutesOfDay < (3*60) ? "asia" : "transition"
+
+// --- Rolling stats -------------------------------------------------------
+atrCur = ta.atr(14)
+// 5min ATR for Setup E breaks (works whether or not chart is on 5m).
+atr5m  = request.security(syminfo.tickerid, "5",   ta.atr(14), lookahead=barmerge.lookahead_off)
+atr1H  = request.security(syminfo.tickerid, "60",  ta.atr(14), lookahead=barmerge.lookahead_off)
+atr4H  = request.security(syminfo.tickerid, "240", ta.atr(14), lookahead=barmerge.lookahead_off)
+atrD   = request.security(syminfo.tickerid, "D",   ta.atr(14), lookahead=barmerge.lookahead_off)
+
+volAvg20 = ta.sma(volume, 20)
+volRatio = volAvg20 > 0 ? volume / volAvg20 : 0.0
+
+
+// ============================================================================
+// SECTION 2 — LEVEL COMPUTATION (Spec §"Build sequence" step 2, §3 Setup A)
+// ============================================================================
+
+// Prior Day H / L / Open / Close (yesterday — closed)
+[pdh, pdl, pdo, pdc] = request.security(syminfo.tickerid, "D", [high[1], low[1], open[1], close[1]], lookahead=barmerge.lookahead_off)
+
+// Weekly H/L/Open (prior completed week)
+[weekH, weekL, weekO] = request.security(syminfo.tickerid, "W", [high[1], low[1], open[1]], lookahead=barmerge.lookahead_off)
+
+// Monthly H/L/Open (prior completed month)
+[monH, monL, monO] = request.security(syminfo.tickerid, "M", [high[1], low[1], open[1]], lookahead=barmerge.lookahead_off)
+
+// Today's RTH open — captured on first RTH bar of the session.
+var float todayRthOpen = na
+rthJustStarted = inRthSession and not inRthSession[1]
+if rthJustStarted
+    todayRthOpen := open
+
+// Overnight (Globex) high/low — track from RTH close (16:00 ET) through next RTH open.
+var float onHigh = na
+var float onLow  = na
+onJustStarted = not inRthSession and inRthSession[1]
+if onJustStarted
+    onHigh := high
+    onLow  := low
+else if inOvernight
+    onHigh := na(onHigh) ? high : math.max(onHigh, high)
+    onLow  := na(onLow)  ? low  : math.min(onLow,  low)
+
+// --- Bundle key levels into a typed structure -----
+// Each level has: name, price, "freshness_bars" since formation (rough approximation
+// for daily/weekly/monthly is "bars since the most recent new day/week/month boundary").
+type KeyLevel
+    string name
+    float  price
+    int    formedBar
+
+// We rebuild the active key-level array each bar so the freshness counter is current.
+levelArr = array.new<KeyLevel>()
+var int pdhFormedBar     = na
+var int pdlFormedBar     = na
+var int weekLevelFormed  = na
+var int monLevelFormed   = na
+var int onHighFormedBar  = na
+var int onLowFormedBar   = na
+var int rthOpenFormedBar = na
+
+newDay   = ta.change(time("D")) != 0
+newWeek  = ta.change(time("W")) != 0
+newMonth = ta.change(time("M")) != 0
+
+if newDay
+    pdhFormedBar := bar_index
+    pdlFormedBar := bar_index
+if newWeek
+    weekLevelFormed := bar_index
+if newMonth
+    monLevelFormed := bar_index
+if onJustStarted
+    onHighFormedBar := bar_index
+    onLowFormedBar  := bar_index
+if rthJustStarted
+    rthOpenFormedBar := bar_index
+
+if not na(pdh)
+    array.push(levelArr, KeyLevel.new("prior_day_high", pdh, nz(pdhFormedBar, bar_index)))
+if not na(pdl)
+    array.push(levelArr, KeyLevel.new("prior_day_low",  pdl, nz(pdlFormedBar, bar_index)))
+if not na(weekH)
+    array.push(levelArr, KeyLevel.new("weekly_high", weekH, nz(weekLevelFormed, bar_index)))
+if not na(weekL)
+    array.push(levelArr, KeyLevel.new("weekly_low",  weekL, nz(weekLevelFormed, bar_index)))
+if not na(weekO)
+    array.push(levelArr, KeyLevel.new("weekly_open", weekO, nz(weekLevelFormed, bar_index)))
+if not na(monH)
+    array.push(levelArr, KeyLevel.new("monthly_high", monH, nz(monLevelFormed, bar_index)))
+if not na(monL)
+    array.push(levelArr, KeyLevel.new("monthly_low",  monL, nz(monLevelFormed, bar_index)))
+if not na(monO)
+    array.push(levelArr, KeyLevel.new("monthly_open", monO, nz(monLevelFormed, bar_index)))
+if not na(todayRthOpen)
+    array.push(levelArr, KeyLevel.new("rth_open", todayRthOpen, nz(rthOpenFormedBar, bar_index)))
+if not na(onHigh)
+    array.push(levelArr, KeyLevel.new("overnight_high", onHigh, nz(onHighFormedBar, bar_index)))
+if not na(onLow)
+    array.push(levelArr, KeyLevel.new("overnight_low",  onLow,  nz(onLowFormedBar,  bar_index)))
+
+
+// ============================================================================
+// SECTION 3 — BULL vs BEAR REPLICATION, PATH A (Spec §10)
+// ============================================================================
+// Per Spec §10 Path A:
+//   bull_bar = (close - low) / (high - low) * volume
+//   bear_bar = (high - close) / (high - low) * volume
+//   Sum each over `bvbLookback` bars, EMA-smooth, normalize to 0–100%.
+
+barRange = math.max(high - low, syminfo.mintick)  // prevent div-by-zero
+bullBar  = (close - low) / barRange * volume
+bearBar  = (high - close) / barRange * volume
+
+bullSum = math.sum(bullBar, i_bvbLookback)
+bearSum = math.sum(bearBar, i_bvbLookback)
+
+bullSm  = ta.ema(bullSum, i_bvbSmoothing)
+bearSm  = ta.ema(bearSum, i_bvbSmoothing)
+
+bvbTotal = bullSm + bearSm
+bullPct  = bvbTotal > 0 ? bullSm / bvbTotal * 100.0 : 50.0
+bearPct  = 100.0 - bullPct
+
+// Delta + velocity
+bvbDelta        = math.abs(bullPct - bearPct)
+bvbDelta3Bar    = math.abs(bullPct - bullPct[3])
+bvbStrongDelta  = bvbDelta >= i_volStrengthMinDelta
+bvbBonusDelta   = bvbDelta >= i_volStrengthBonusDelta       // +1 confluence point (Spec §9)
+bvbVelocity     = bvbDelta3Bar >= i_volVelocityDelta
+
+// Dominance + flip
+bullDominant     = bullPct > bearPct
+bvbFlip          = bullDominant != (bullPct[1] > bearPct[1])
+bvbFlipPast2Bars = bvbFlip or (bullDominant != (bullPct[2] > bearPct[2]))
+bvbBullDom60     = bullPct >= i_volSidedDom
+bvbBearDom60     = bearPct >= i_volSidedDom
+
+// Volume gate (Spec §10)
+volPassesMin = volRatio >= i_volMinBarMult
+volVeto      = volRatio < i_volVetoMult and bullPct < 55 and bearPct < 55
+
+// Per-direction confirmation (used by all setups)
+volConfirmLong  = volPassesMin and bvbBullDom60 and (ta.rising(bullPct, 2) or bvbFlip)
+volConfirmShort = volPassesMin and bvbBearDom60 and (ta.rising(bearPct, 2) or bvbFlip)
+
+
+// ============================================================================
+// SECTION 4 — SUPPLY/DEMAND ZONE DETECTOR (Spec §3 Setup B)
+// ============================================================================
+// Zone definition: consolidation range of >= zoneConsolBars preceding an
+// impulsive move of >= zoneImpulseAtrMult * ATR(14). Box top/bottom = the
+// consolidation's high/low. Zone is "supply" if the impulse moved DOWN
+// (so the consolidation sits above current price), "demand" if UP.
+
+type Zone
+    float top
+    float bottom
+    int   createdBar
+    int   lastTagBar
+    bool  isSupply
+    box   drawBox       // visual reference
+
+var array<Zone> zoneArr = array.new<Zone>()
+
+// Consolidation = last N (excluding current bar) had tight range
+consolHigh  = ta.highest(high, i_zoneConsolBars)[1]
+consolLow   = ta.lowest(low,   i_zoneConsolBars)[1]
+consolRange = consolHigh - consolLow
+isTightConsol = consolRange < atrCur and consolRange > 0
+
+// Impulse = current bar moved at least N*ATR vs N-bars-ago close
+moveSize = math.abs(close - close[i_zoneConsolBars])
+isImpulse = moveSize > atrCur * i_zoneImpulseAtrMult
+
+// New zone formed
+newZoneFormed = isTightConsol and isImpulse and barstate.isconfirmed
+
+if newZoneFormed
+    isSupplyZone = close < close[i_zoneConsolBars]   // impulse DOWN → zone above is supply
+    box bx = na
+    if i_drawZones
+        bx := box.new(left=bar_index - i_zoneConsolBars, top=consolHigh, right=bar_index, bottom=consolLow, bgcolor=color.new(isSupplyZone ? color.red : color.green, 85), border_color=color.new(isSupplyZone ? color.red : color.green, 50), extend=extend.right)
+    z = Zone.new(consolHigh, consolLow, bar_index, na, isSupplyZone, bx)
+    array.push(zoneArr, z)
+    // Cap array size
+    if array.size(zoneArr) > i_zoneMaxActive
+        oldest = array.shift(zoneArr)
+        if not na(oldest.drawBox)
+            box.delete(oldest.drawBox)
+
+// Update zone "lastTag" if price touches any active zone this bar.
+// Also extend box right edge if we're drawing.
+zoneTouchedThisBar     = false
+zoneTouchedFreshIdx    = -1
+zoneTouchedIsSupply    = false
+zoneTouchedTop         = 0.0
+zoneTouchedBottom      = 0.0
+zoneTouchedFreshness   = 0
+zoneTouchedExtraFresh  = false
+
+if array.size(zoneArr) > 0
+    for i = 0 to array.size(zoneArr) - 1
+        z = array.get(zoneArr, i)
+        touched = high >= z.bottom and low <= z.top
+        // "Confirmation": bar closed back outside the zone on the right side
+        confirmedSupply = z.isSupply and close < z.bottom and touched
+        confirmedDemand = not z.isSupply and close > z.top and touched
+        if confirmedSupply or confirmedDemand
+            // Freshness check
+            fresh = na(z.lastTagBar) or (bar_index - z.lastTagBar) > i_zoneFreshnessBars
+            barsSinceFormation = bar_index - z.createdBar
+            if fresh and not zoneTouchedThisBar
+                zoneTouchedThisBar    := true
+                zoneTouchedFreshIdx   := i
+                zoneTouchedIsSupply   := z.isSupply
+                zoneTouchedTop        := z.top
+                zoneTouchedBottom     := z.bottom
+                zoneTouchedFreshness  := barsSinceFormation
+                zoneTouchedExtraFresh := barsSinceFormation > i_zoneFreshBonusBars
+        // Mark tag whether or not it confirmed — it was tagged
+        if touched
+            z.lastTagBar := bar_index
+            array.set(zoneArr, i, z)
+        // Extend visual
+        if i_drawZones and not na(z.drawBox)
+            box.set_right(z.drawBox, bar_index)
+
+
+// ============================================================================
+// SECTION 5 — STRUCTURAL PIVOT DETECTOR (Spec §3 Setup C, §"Build sequence" 5)
+// ============================================================================
+// "Pivot" per Spec §3 Setup C = previous price-action turning point on a
+// higher timeframe, NOT a floor-trader pivot. We use ta.pivothigh / ta.pivotlow
+// on the 1H and 4H, requesting via request.security().
+
+ph1_raw = request.security(syminfo.tickerid, "60",  ta.pivothigh(i_pivotN_1H, i_pivotN_1H), lookahead=barmerge.lookahead_off)
+pl1_raw = request.security(syminfo.tickerid, "60",  ta.pivotlow( i_pivotN_1H, i_pivotN_1H), lookahead=barmerge.lookahead_off)
+ph4_raw = request.security(syminfo.tickerid, "240", ta.pivothigh(i_pivotN_4H, i_pivotN_4H), lookahead=barmerge.lookahead_off)
+pl4_raw = request.security(syminfo.tickerid, "240", ta.pivotlow( i_pivotN_4H, i_pivotN_4H), lookahead=barmerge.lookahead_off)
+
+// Track most-recent two pivots of each kind for next-pivot target logic.
+var float ph1_last1 = na, var float ph1_last2 = na
+var float pl1_last1 = na, var float pl1_last2 = na
+var float ph4_last1 = na, var float ph4_last2 = na
+var float pl4_last1 = na, var float pl4_last2 = na
+
+if not na(ph1_raw)
+    ph1_last2 := ph1_last1
+    ph1_last1 := ph1_raw
+if not na(pl1_raw)
+    pl1_last2 := pl1_last1
+    pl1_last1 := pl1_raw
+if not na(ph4_raw)
+    ph4_last2 := ph4_last1
+    ph4_last1 := ph4_raw
+if not na(pl4_raw)
+    pl4_last2 := pl4_last1
+    pl4_last1 := pl4_raw
+
+
+// ============================================================================
+// SECTION 6 — BIAS DETECTION (Spec §2)
+// ============================================================================
+// "Trend up/down" mechanically defined as: close above/below the 20-period EMA
+// on that timeframe AND higher-highs / lower-lows structure in the last 10 bars.
+
+// Daily and 4H closes + EMAs
+[dailyClose, dailyEMA] = request.security(syminfo.tickerid, "D",   [close, ta.ema(close, i_biasEmaLength)], lookahead=barmerge.lookahead_off)
+[h4Close,    h4EMA]    = request.security(syminfo.tickerid, "240", [close, ta.ema(close, i_biasEmaLength)], lookahead=barmerge.lookahead_off)
+
+// Structure: higher-highs/higher-lows across last N bars on each TF
+hh10D = request.security(syminfo.tickerid, "D",   ta.highest(high, i_biasStructBars) > ta.highest(high, i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+hl10D = request.security(syminfo.tickerid, "D",   ta.lowest(low,   i_biasStructBars) > ta.lowest(low,   i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+lh10D = request.security(syminfo.tickerid, "D",   ta.highest(high, i_biasStructBars) < ta.highest(high, i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+ll10D = request.security(syminfo.tickerid, "D",   ta.lowest(low,   i_biasStructBars) < ta.lowest(low,   i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+hh104H = request.security(syminfo.tickerid, "240", ta.highest(high, i_biasStructBars) > ta.highest(high, i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+hl104H = request.security(syminfo.tickerid, "240", ta.lowest(low,   i_biasStructBars) > ta.lowest(low,   i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+lh104H = request.security(syminfo.tickerid, "240", ta.highest(high, i_biasStructBars) < ta.highest(high, i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+ll104H = request.security(syminfo.tickerid, "240", ta.lowest(low,   i_biasStructBars) < ta.lowest(low,   i_biasStructBars)[1], lookahead=barmerge.lookahead_off)
+
+dailyBullTrend = dailyClose > dailyEMA and hh10D and hl10D
+dailyBearTrend = dailyClose < dailyEMA and lh10D and ll10D
+dailyRanging   = not dailyBullTrend and not dailyBearTrend
+
+h4BullTrend = h4Close > h4EMA and hh104H and hl104H
+h4BearTrend = h4Close < h4EMA and lh104H and ll104H
+h4Ranging   = not h4BullTrend and not h4BearTrend
+
+// "Strongly opposed" downgrade trigger (Spec §9): price > 2× ATR away from daily 20-EMA
+dailyDistInAtrs = atrD > 0 ? math.abs(close - dailyEMA) / atrD : 0.0
+dailyStronglyOpposedLong  = dailyBearTrend and dailyDistInAtrs > i_biasOpposeAtrMult
+dailyStronglyOpposedShort = dailyBullTrend and dailyDistInAtrs > i_biasOpposeAtrMult
+
+
+// ============================================================================
+// SECTION 7 — REJECTION WICK + DIRECTION HELPERS
+// ============================================================================
+
+lowerWick = math.min(open, close) - low
+upperWick = high - math.max(open, close)
+totalRng  = high - low
+lowerWickPct = totalRng > 0 ? lowerWick / totalRng : 0.0
+upperWickPct = totalRng > 0 ? upperWick / totalRng : 0.0
+
+longRejection  = lowerWickPct >= i_rejectionWickPct
+shortRejection = upperWickPct >= i_rejectionWickPct
+
+
+// ============================================================================
+// SECTION 8 — SETUP A: KEY LEVEL + VOLUME (Spec §3)
+// ============================================================================
+// Conditions (all must be true):
+//   - bar high (short) or low (long) within proxDistance of a key level
+//   - rejection wick >= rejectionWickPct of bar range pointing away from level
+//   - Bull vs Bear strength delta + side dominance (Spec §10)
+//   - bias agrees OR alert achieves A+ grade later
+
+setupA_longFired    = false
+setupA_shortFired   = false
+setupA_levelName    = ""
+setupA_levelPrice   = 0.0
+setupA_levelFresh   = 0
+
+if array.size(levelArr) > 0
+    for i = 0 to array.size(levelArr) - 1
+        lvl = array.get(levelArr, i)
+        if not na(lvl.price)
+            // Long: bar low tagged level from above and rejected up
+            longTag  = low  <= lvl.price + proxDistance and low  >= lvl.price - proxDistance and close > lvl.price
+            // Short: bar high tagged level from below and rejected down
+            shortTag = high <= lvl.price + proxDistance and high >= lvl.price - proxDistance and close < lvl.price
+            if longTag and longRejection and volConfirmLong and not setupA_longFired
+                setupA_longFired  := true
+                setupA_levelName  := lvl.name
+                setupA_levelPrice := lvl.price
+                setupA_levelFresh := bar_index - lvl.formedBar
+            if shortTag and shortRejection and volConfirmShort and not setupA_shortFired
+                setupA_shortFired := true
+                setupA_levelName  := lvl.name
+                setupA_levelPrice := lvl.price
+                setupA_levelFresh := bar_index - lvl.formedBar
+
+
+// ============================================================================
+// SECTION 9 — SETUP B: SUPPLY/DEMAND ZONE BOUNCE (Spec §3)
+// ============================================================================
+// The zone detector in §4 already populates zoneTouchedThisBar and direction.
+// We just need volume confirmation matching the implied direction.
+
+setupB_longFired  = false
+setupB_shortFired = false
+setupB_zoneFresh  = 0
+setupB_extraFresh = false
+setupB_zoneTop    = 0.0
+setupB_zoneBottom = 0.0
+
+if zoneTouchedThisBar
+    if zoneTouchedIsSupply and shortRejection and volConfirmShort
+        setupB_shortFired := true
+    if not zoneTouchedIsSupply and longRejection and volConfirmLong
+        setupB_longFired := true
+    setupB_zoneFresh  := zoneTouchedFreshness
+    setupB_extraFresh := zoneTouchedExtraFresh
+    setupB_zoneTop    := zoneTouchedTop
+    setupB_zoneBottom := zoneTouchedBottom
+
+
+// ============================================================================
+// SECTION 10 — SETUP C: PIVOT-TO-PIVOT (Spec §3)
+// ============================================================================
+
+setupC_longFired   = false
+setupC_shortFired  = false
+setupC_pivotName   = ""
+setupC_pivotPrice  = 0.0
+float setupC_nextPivot = na
+
+pivotProxDist = i_pivotProxTicks * syminfo.mintick
+
+// Long candidates: at pivot LOWS (price returning from above to test a prior low)
+// Short candidates: at pivot HIGHS (price returning from below to test a prior high)
+checkPivotLong(p, name, nextP) =>
+    fired = not na(p) and low <= p + pivotProxDist and low >= p - pivotProxDist and close > p and longRejection and volConfirmLong
+    [fired, name, p, nextP]
+
+checkPivotShort(p, name, nextP) =>
+    fired = not na(p) and high <= p + pivotProxDist and high >= p - pivotProxDist and close < p and shortRejection and volConfirmShort
+    [fired, name, p, nextP]
+
+[c1Lf, c1Ln, c1Lp, c1Lnext] = checkPivotLong(pl4_last1, "4h_pivot_low", ph4_last1)
+[c2Lf, c2Ln, c2Lp, c2Lnext] = checkPivotLong(pl1_last1, "1h_pivot_low", ph1_last1)
+[c1Sf, c1Sn, c1Sp, c1Snext] = checkPivotShort(ph4_last1,"4h_pivot_high", pl4_last1)
+[c2Sf, c2Sn, c2Sp, c2Snext] = checkPivotShort(ph1_last1,"1h_pivot_high", pl1_last1)
+
+// Prefer 4H over 1H (higher TF takes priority per Spec §2 hierarchy)
+if c1Lf
+    setupC_longFired := true
+    setupC_pivotName := c1Ln
+    setupC_pivotPrice:= c1Lp
+    setupC_nextPivot := c1Lnext
+else if c2Lf
+    setupC_longFired := true
+    setupC_pivotName := c2Ln
+    setupC_pivotPrice:= c2Lp
+    setupC_nextPivot := c2Lnext
+
+if c1Sf
+    setupC_shortFired := true
+    setupC_pivotName  := c1Sn
+    setupC_pivotPrice := c1Sp
+    setupC_nextPivot  := c1Snext
+else if c2Sf
+    setupC_shortFired := true
+    setupC_pivotName  := c2Sn
+    setupC_pivotPrice := c2Sp
+    setupC_nextPivot  := c2Snext
+
+
+// ============================================================================
+// SECTION 11 — SETUP E: DAILY HIGH/LOW RETEST (Spec §3) — PRIORITY SETUP
+// ============================================================================
+// Steps:
+//  1. Detect break of PDH (or PDL) in the current session (close beyond by
+//     >= setupEBreakAtrMult * atr5m).
+//  2. Track that the break occurred today.
+//  3. Detect return to within setupERetestTicks of the broken level.
+//  4. Distribution confirmation: bar closes back on the original break side.
+//  5. Volume confirm + rejection wick.
+
+var bool pdhBrokenToday = false
+var bool pdlBrokenToday = false
+
+if newDay
+    pdhBrokenToday := false
+    pdlBrokenToday := false
+
+setupEBreakDist = atr5m * i_setupEBreakAtrMult
+
+if not na(pdh) and close > pdh + setupEBreakDist
+    pdhBrokenToday := true
+if not na(pdl) and close < pdl - setupEBreakDist
+    pdlBrokenToday := true
+
+retestDist = i_setupERetestTicks * syminfo.mintick
+
+setupE_longFired  = false
+setupE_shortFired = false
+setupE_levelName  = ""
+setupE_levelPrice = 0.0
+
+// Long continuation: PDH was broken up, price retests PDH from above, holds, closes back above
+if pdhBrokenToday and not na(pdh) and low <= pdh + retestDist and low >= pdh - retestDist and close > pdh and longRejection and volConfirmLong
+    setupE_longFired := true
+    setupE_levelName := "prior_day_high"
+    setupE_levelPrice:= pdh
+
+// Short continuation: PDL was broken down, price retests PDL from below, holds, closes back below
+if pdlBrokenToday and not na(pdl) and high <= pdl + retestDist and high >= pdl - retestDist and close < pdl and shortRejection and volConfirmShort
+    setupE_shortFired := true
+    setupE_levelName  := "prior_day_low"
+    setupE_levelPrice := pdl
+
+
+// ============================================================================
+// SECTION 12 — CORRELATION CHECK (Spec §8)
+// ============================================================================
+// All correlation values computed against the chart's current timeframe.
+
+spy_close  = request.security(i_sym_SPY,  timeframe.period, close, lookahead=barmerge.lookahead_off)
+vix_close  = request.security(i_sym_VIX,  timeframe.period, close, lookahead=barmerge.lookahead_off)
+nvda_close = request.security(i_sym_NVDA, timeframe.period, close, lookahead=barmerge.lookahead_off)
+qqq_close  = request.security(i_sym_QQQ,  timeframe.period, close, lookahead=barmerge.lookahead_off)
+dxy_close  = request.security(i_sym_DXY,  timeframe.period, close, lookahead=barmerge.lookahead_off)
+si_close   = request.security(i_sym_SI,   timeframe.period, close, lookahead=barmerge.lookahead_off)
+
+corr_spy  = ta.correlation(close, spy_close,  i_corrLookback)
+corr_vix  = ta.correlation(close, vix_close,  i_corrLookback)
+corr_nvda = ta.correlation(close, nvda_close, i_corrLookback)
+corr_qqq  = ta.correlation(close, qqq_close,  i_corrLookback)
+corr_dxy  = ta.correlation(close, dxy_close,  i_corrLookback)
+corr_si   = ta.correlation(close, si_close,   i_corrLookback)
+
+// `aligned` depends on the trade direction at alert time. Compute helper
+// functions that take direction and return aligned booleans per symbol.
+corrAlignedPos(corrVal) => not na(corrVal) and corrVal > i_corrPosThresh
+corrAlignedNeg(corrVal) => not na(corrVal) and corrVal < i_corrNegThresh
+
+// For an NQ long: SPY/NVDA/QQQ should be positively-correlated AND moving up.
+// We approximate "moving up" with: spy_close > spy_close[1]. (Spec is silent
+// on exact direction-check window — using 1-bar change is the simplest gauge.)
+spyUp  = spy_close  > spy_close[1]
+vixUp  = vix_close  > vix_close[1]
+nvdaUp = nvda_close > nvda_close[1]
+qqqUp  = qqq_close  > qqq_close[1]
+dxyUp  = dxy_close  > dxy_close[1]
+siUp   = si_close   > si_close[1]
+
+
+// ============================================================================
+// SECTION 13 — CONFLUENCE SCORING ENGINE (Spec §9)
+// ============================================================================
+
+// Decide direction first. Multiple setups can fire simultaneously; we pick the
+// dominant direction by counting which side has more setups firing.
+longCount  = (setupA_longFired  ? 1 : 0) + (setupB_longFired  ? 1 : 0) + (setupC_longFired  ? 1 : 0) + (setupE_longFired  ? 1 : 0)
+shortCount = (setupA_shortFired ? 1 : 0) + (setupB_shortFired ? 1 : 0) + (setupC_shortFired ? 1 : 0) + (setupE_shortFired ? 1 : 0)
+
+anyFired   = longCount > 0 or shortCount > 0
+direction  = longCount > shortCount ? "long" : shortCount > longCount ? "short" : "conflict"
+// If tied, suppress — conflicting setups are noise, not signal.
+conflictTie = longCount > 0 and shortCount > 0 and longCount == shortCount
+
+// Setup priority for the payload's primary `setup_type`: E > A > B > C
+primarySetupType = ""
+primarySetupName = ""
+primaryLevelName = ""
+primaryLevelPrice= 0.0
+primaryLevelFresh= 0
+
+setupEDirFired = direction == "long" ? setupE_longFired : setupE_shortFired
+setupADirFired = direction == "long" ? setupA_longFired : setupA_shortFired
+setupBDirFired = direction == "long" ? setupB_longFired : setupB_shortFired
+setupCDirFired = direction == "long" ? setupC_longFired : setupC_shortFired
+
+if setupEDirFired
+    primarySetupType  := "E"
+    primarySetupName  := "Daily H/L Retest"
+    primaryLevelName  := setupE_levelName
+    primaryLevelPrice := setupE_levelPrice
+    primaryLevelFresh := setupE_levelName == "prior_day_high" ? bar_index - nz(pdhFormedBar, bar_index) : bar_index - nz(pdlFormedBar, bar_index)
+else if setupADirFired
+    primarySetupType  := "A"
+    primarySetupName  := "Key Level + Volume"
+    primaryLevelName  := setupA_levelName
+    primaryLevelPrice := setupA_levelPrice
+    primaryLevelFresh := setupA_levelFresh
+else if setupBDirFired
+    primarySetupType  := "B"
+    primarySetupName  := "Supply/Demand Zone Bounce"
+    primaryLevelName  := direction == "long" ? "demand_zone" : "supply_zone"
+    primaryLevelPrice := direction == "long" ? setupB_zoneTop : setupB_zoneBottom
+    primaryLevelFresh := setupB_zoneFresh
+else if setupCDirFired
+    primarySetupType  := "C"
+    primarySetupName  := "Pivot-to-Pivot"
+    primaryLevelName  := setupC_pivotName
+    primaryLevelPrice := setupC_pivotPrice
+    primaryLevelFresh := 0  // pivots don't track "freshness" the same way
+
+// --- Base points by setup ---
+gradePoints = 0.0
+if setupEDirFired
+    gradePoints := gradePoints + 3.0   // priority setup
+if setupADirFired
+    gradePoints := gradePoints + 2.0
+if setupBDirFired
+    gradePoints := gradePoints + 2.0
+if setupCDirFired
+    gradePoints := gradePoints + 2.0
+
+// --- Confluence overlap bonus: additional levels/zones/pivots within proxDistance ---
+// Count distinct level-types at the trigger price (excluding the primary one).
+overlapCount = 0
+triggerPrice = direction == "long" ? low : high
+
+// Check key levels
+if array.size(levelArr) > 0
+    for i = 0 to array.size(levelArr) - 1
+        l = array.get(levelArr, i)
+        if not na(l.price) and math.abs(triggerPrice - l.price) <= proxDistance and l.name != primaryLevelName
+            overlapCount := overlapCount + 1
+
+// Check pivots
+if not na(ph1_last1) and math.abs(triggerPrice - ph1_last1) <= proxDistance and primaryLevelName != "1h_pivot_high"
+    overlapCount := overlapCount + 1
+if not na(pl1_last1) and math.abs(triggerPrice - pl1_last1) <= proxDistance and primaryLevelName != "1h_pivot_low"
+    overlapCount := overlapCount + 1
+if not na(ph4_last1) and math.abs(triggerPrice - ph4_last1) <= proxDistance and primaryLevelName != "4h_pivot_high"
+    overlapCount := overlapCount + 1
+if not na(pl4_last1) and math.abs(triggerPrice - pl4_last1) <= proxDistance and primaryLevelName != "4h_pivot_low"
+    overlapCount := overlapCount + 1
+
+// Check active zones (only the one that fired Setup B is excluded — others can overlap)
+if array.size(zoneArr) > 0
+    for i = 0 to array.size(zoneArr) - 1
+        z = array.get(zoneArr, i)
+        // overlap if trigger price within zone bounds, and it's not the primary B zone
+        primaryZoneTop    = setupBDirFired ? setupB_zoneTop : na
+        primaryZoneBottom = setupBDirFired ? setupB_zoneBottom : na
+        sameZone = setupBDirFired and z.top == primaryZoneTop and z.bottom == primaryZoneBottom
+        if not sameZone and triggerPrice >= z.bottom and triggerPrice <= z.top
+            overlapCount := overlapCount + 1
+
+gradePoints := gradePoints + overlapCount * 1.0
+
+// --- Bias agreement ---
+biasD_agrees = (direction == "long" and dailyBullTrend) or (direction == "short" and dailyBearTrend)
+bias4_agrees = (direction == "long" and h4BullTrend)    or (direction == "short" and h4BearTrend)
+if biasD_agrees
+    gradePoints := gradePoints + 1.0
+if bias4_agrees
+    gradePoints := gradePoints + 1.0
+
+// --- Correlation alignment ---
+// NQ/ES context
+spy_align  = direction == "long" ? (corrAlignedPos(corr_spy)  and spyUp)  : (corrAlignedPos(corr_spy)  and not spyUp)
+vix_align  = direction == "long" ? (corrAlignedNeg(corr_vix)  and not vixUp) : (corrAlignedNeg(corr_vix)  and vixUp)
+nvda_align = direction == "long" ? (corrAlignedPos(corr_nvda) and nvdaUp) : (corrAlignedPos(corr_nvda) and not nvdaUp)
+qqq_align  = direction == "long" ? (corrAlignedPos(corr_qqq)  and qqqUp)  : (corrAlignedPos(corr_qqq)  and not qqqUp)
+// GC context
+dxy_align  = direction == "long" ? (corrAlignedNeg(corr_dxy)  and not dxyUp) : (corrAlignedNeg(corr_dxy)  and dxyUp)
+si_align   = direction == "long" ? (corrAlignedPos(corr_si)   and siUp)   : (corrAlignedPos(corr_si)   and not siUp)
+
+corrCount = 0
+if activeAsset == "NQ" or activeAsset == "ES"
+    if spy_align
+        corrCount := corrCount + 1
+    if vix_align
+        corrCount := corrCount + 1
+    if nvda_align
+        corrCount := corrCount + 1
+    if qqq_align
+        corrCount := corrCount + 1
+if activeAsset == "GC"
+    if dxy_align
+        corrCount := corrCount + 1
+    if si_align
+        corrCount := corrCount + 1
+gradePoints := gradePoints + corrCount * 0.5
+
+// --- Inside primary trading window ---
+if inPrimaryWindow
+    gradePoints := gradePoints + 1.0
+
+// --- Predictive bias (gold only, after 9:40 ET) -----
+// Captured during 9:15–9:40 ET: the direction of price movement during that window.
+var float predOpenPrice  = na
+var float predClosePrice = na
+predJustStarted = inPredictiveWindow and not inPredictiveWindow[1]
+predJustEnded   = not inPredictiveWindow and inPredictiveWindow[1]
+if predJustStarted
+    predOpenPrice := open
+if inPredictiveWindow
+    predClosePrice := close
+
+predictiveBias = "" 
+if not na(predOpenPrice) and not na(predClosePrice)
+    predictiveBias := predClosePrice > predOpenPrice ? "long" : predClosePrice < predOpenPrice ? "short" : "flat"
+
+predBiasAgrees = activeAsset == "GC" and predictiveBias == direction and etMinutesOfDay >= (9*60+40)
+if predBiasAgrees
+    gradePoints := gradePoints + 1.0
+predBiasOpposes = activeAsset == "GC" and predictiveBias != "" and predictiveBias != "flat" and predictiveBias != direction and etMinutesOfDay >= (9*60+40)
+
+// --- Bull vs Bear bonus delta ---
+if bvbBonusDelta
+    gradePoints := gradePoints + 1.0
+
+// --- Fresh zone bonus (untagged for zoneFreshBonusBars+) ---
+if setupBDirFired and setupB_extraFresh
+    gradePoints := gradePoints + 1.0
+
+
+// --- Compute initial grade from points ---
+initialGrade = gradePoints >= i_gradeAPlusMin ? "A+" : gradePoints >= i_gradeAMin ? "A" : gradePoints >= i_gradeBMin ? "B" : "C"
+
+// --- Downgrades (Spec §9) ---
+// 1. Friday after 11:00 ET
+// 2. Outside primary AND secondary window
+// 3. Predictive bias strongly opposes (gold-only modeled as a downgrade)
+// 4. Daily bias strongly opposed (price > 2× ATR from daily 20-EMA in opposite direction)
+downgradeOneGrade(g) =>
+    g == "A+" ? "A" : g == "A" ? "B" : g == "B" ? "C" : "C"
+
+grade = initialGrade
+if isFridayPm and i_fridayPmDowngrade
+    grade := downgradeOneGrade(grade)
+if not inPrimaryWindow and not inSecondaryWindow
+    grade := downgradeOneGrade(grade)
+if direction == "long" and dailyStronglyOpposedLong
+    grade := downgradeOneGrade(grade)
+if direction == "short" and dailyStronglyOpposedShort
+    grade := downgradeOneGrade(grade)
+if predBiasOpposes
+    grade := downgradeOneGrade(grade)
+
+// --- Hard suppression conditions (Spec §7, §10) ---
+suppressed = false
+suppressReason = ""
+if volVeto
+    suppressed := true
+    suppressReason := "volume_veto"
+if inOpeningSuppress
+    suppressed := true
+    suppressReason := "first_5_min_of_rth"
+if i_suppressMidday and inMidday
+    suppressed := true
+    suppressReason := "midday_zone"
+if conflictTie
+    suppressed := true
+    suppressReason := "direction_conflict"
+if not anyFired
+    suppressed := true
+    suppressReason := "no_setup_fired"
+
+
+// ============================================================================
+// SECTION 14 — STOP / TARGET COMPUTATION (Spec §5, §6)
+// ============================================================================
+
+var float stopPrice  = na
+var float target1    = na
+var float target2    = na
+
+// Per-setup stop placement (Spec §5)
+if primarySetupType == "A"
+    // Beyond level by 1× ATR(entry TF) OR fixed (15 NQ / 8 ES / 20 GC ticks), whichever is greater
+    fixedTicks = activeAsset == "NQ" ? 15 : activeAsset == "ES" ? 8 : activeAsset == "GC" ? 20 : 15
+    fixedDist  = fixedTicks * syminfo.mintick
+    stopDist   = math.max(atrCur, fixedDist)
+    stopPrice  := direction == "long" ? primaryLevelPrice - stopDist : primaryLevelPrice + stopDist
+else if primarySetupType == "B"
+    // Beyond outer edge of zone by 0.25× zone height
+    zHeight = setupB_zoneTop - setupB_zoneBottom
+    stopPrice := direction == "long" ? setupB_zoneBottom - 0.25 * zHeight : setupB_zoneTop + 0.25 * zHeight
+else if primarySetupType == "C"
+    // Beyond pivot by 1× ATR of source TF (using 4H ATR when name contains "4h" else 1H)
+    srcAtr = str.contains(primaryLevelName, "4h") ? atr4H : atr1H
+    stopPrice := direction == "long" ? primaryLevelPrice - srcAtr : primaryLevelPrice + srcAtr
+else if primarySetupType == "E"
+    // Beyond broken level by 1× ATR(5min)
+    stopPrice := direction == "long" ? primaryLevelPrice - atr5m : primaryLevelPrice + atr5m
+
+// Target logic (Spec §6) — use the next key level / pivot in the trade direction
+findNextLevelAbove(refPrice) =>
+    float best = na
+    if array.size(levelArr) > 0
+        for i = 0 to array.size(levelArr) - 1
+            l = array.get(levelArr, i)
+            if not na(l.price) and l.price > refPrice
+                if na(best) or l.price < best
+                    best := l.price
+    if not na(ph1_last1) and ph1_last1 > refPrice and (na(best) or ph1_last1 < best)
+        best := ph1_last1
+    if not na(ph4_last1) and ph4_last1 > refPrice and (na(best) or ph4_last1 < best)
+        best := ph4_last1
+    best
+
+findNextLevelBelow(refPrice) =>
+    float best = na
+    if array.size(levelArr) > 0
+        for i = 0 to array.size(levelArr) - 1
+            l = array.get(levelArr, i)
+            if not na(l.price) and l.price < refPrice
+                if na(best) or l.price > best
+                    best := l.price
+    if not na(pl1_last1) and pl1_last1 < refPrice and (na(best) or pl1_last1 > best)
+        best := pl1_last1
+    if not na(pl4_last1) and pl4_last1 < refPrice and (na(best) or pl4_last1 > best)
+        best := pl4_last1
+    best
+
+if anyFired and not suppressed
+    if direction == "long"
+        t1 = findNextLevelAbove(close)
+        target1 := t1
+        if not na(t1)
+            target2 := findNextLevelAbove(t1)
+    else if direction == "short"
+        t1 = findNextLevelBelow(close)
+        target1 := t1
+        if not na(t1)
+            target2 := findNextLevelBelow(t1)
+
+// Reward:risk to target 1
+stopDistPts   = not na(stopPrice) ? math.abs(close - stopPrice) : na
+t1DistPts     = not na(target1) ? math.abs(target1 - close)     : na
+rrToT1        = not na(stopDistPts) and not na(t1DistPts) and stopDistPts > 0 ? t1DistPts / stopDistPts : na
+rrMeets1p5    = not na(rrToT1) and rrToT1 >= 1.5
+
+stopDistDollars   = not na(stopDistPts) ? stopDistPts * dollarPerPoint : na
+t1DistDollars     = not na(t1DistPts)   ? t1DistPts   * dollarPerPoint : na
+
+
+// ============================================================================
+// SECTION 15 — COOLDOWN STATE (Spec §4)
+// ============================================================================
+
+var int lastFireBar_A = -100000
+var int lastFireBar_B = -100000
+var int lastFireBar_C = -100000
+var int lastFireBar_E = -100000
+
+cooldownOK_A = bar_index - lastFireBar_A >= i_cooldownBars
+cooldownOK_B = bar_index - lastFireBar_B >= i_cooldownBars
+cooldownOK_C = bar_index - lastFireBar_C >= i_cooldownBars
+cooldownOK_E = bar_index - lastFireBar_E >= i_cooldownBars
+
+cooldownOK = primarySetupType == "A" ? cooldownOK_A : primarySetupType == "B" ? cooldownOK_B : primarySetupType == "C" ? cooldownOK_C : primarySetupType == "E" ? cooldownOK_E : true
+
+if not cooldownOK and not suppressed
+    suppressed := true
+    suppressReason := "cooldown"
+
+
+// ============================================================================
+// SECTION 16 — JSON PAYLOAD BUILDER (Appendix A of spec)
+// ============================================================================
+
+// Helper formatters
+fmtFloat(v) => na(v) ? "null" : str.tostring(v, "#.########")
+fmtFloat2(v) => na(v) ? "null" : str.tostring(v, "#.##")
+fmtBool(b)  => b ? "true" : "false"
+fmtBoolN(b) => na(b) ? "null" : (b ? "true" : "false")
+fmtStr(s)   => "\"" + s + "\""
+
+// Build confluences array (string of comma-separated quoted entries)
+buildConfluencesArr() =>
+    arr = array.new<string>()
+    if primaryLevelName != ""
+        array.push(arr, primaryLevelName)
+    // Other key levels at trigger price
+    if array.size(levelArr) > 0
+        for i = 0 to array.size(levelArr) - 1
+            l = array.get(levelArr, i)
+            if not na(l.price) and math.abs(triggerPrice - l.price) <= proxDistance and l.name != primaryLevelName
+                array.push(arr, l.name)
+    // Zones (overlap)
+    if array.size(zoneArr) > 0
+        for i = 0 to array.size(zoneArr) - 1
+            z = array.get(zoneArr, i)
+            if triggerPrice >= z.bottom and triggerPrice <= z.top
+                label_ = z.isSupply ? "4h_supply_zone" : "4h_demand_zone"
+                // avoid double-count of the primary B zone
+                samePrimary = primarySetupType == "B" and z.top == setupB_zoneTop and z.bottom == setupB_zoneBottom
+                if not samePrimary
+                    array.push(arr, label_)
+                else
+                    array.push(arr, label_)
+    // Session label
+    if inPrimaryWindow and ictZone == "ny_open"
+        array.push(arr, "ict_ny_open_window")
+    else if inPrimaryWindow
+        array.push(arr, "primary_window")
+    // Bias confluences
+    if biasD_agrees
+        array.push(arr, direction == "long" ? "daily_bull_trend" : "daily_bear_trend")
+    if bias4_agrees
+        array.push(arr, direction == "long" ? "4h_bull_trend"    : "4h_bear_trend")
+    // Predictive bias
+    if predBiasAgrees
+        array.push(arr, "predictive_bias_agrees")
+    // BVB bonus
+    if bvbBonusDelta
+        array.push(arr, "bvb_bonus_delta")
+    // Fresh zone bonus
+    if setupBDirFired and setupB_extraFresh
+        array.push(arr, "zone_extra_fresh")
+    // Render as JSON array
+    s = "["
+    if array.size(arr) > 0
+        for i = 0 to array.size(arr) - 1
+            s := s + (i == 0 ? "" : ",") + fmtStr(array.get(arr, i))
+    s := s + "]"
+    s
+
+// Correlation block as JSON
+buildCorrelationBlock() =>
+    s = "{"
+    parts = array.new<string>()
+    if activeAsset == "NQ" or activeAsset == "ES"
+        array.push(parts, "\"spy\":{\"aligned\":"  + fmtBool(spy_align)  + ",\"corr\":" + fmtFloat2(corr_spy)  + "}")
+        array.push(parts, "\"vix\":{\"aligned\":"  + fmtBool(vix_align)  + ",\"corr\":" + fmtFloat2(corr_vix)  + "}")
+        array.push(parts, "\"nvda\":{\"aligned\":" + fmtBool(nvda_align) + ",\"corr\":" + fmtFloat2(corr_nvda) + "}")
+        array.push(parts, "\"qqq\":{\"aligned\":"  + fmtBool(qqq_align)  + ",\"corr\":" + fmtFloat2(corr_qqq)  + "}")
+    if activeAsset == "GC"
+        array.push(parts, "\"dxy\":{\"aligned\":" + fmtBool(dxy_align) + ",\"corr\":" + fmtFloat2(corr_dxy) + "}")
+        array.push(parts, "\"si\":{\"aligned\":"  + fmtBool(si_align)  + ",\"corr\":" + fmtFloat2(corr_si)  + "}")
+    if array.size(parts) > 0
+        for i = 0 to array.size(parts) - 1
+            s := s + (i == 0 ? "" : ",") + array.get(parts, i)
+    s := s + "}"
+    s
+
+// ISO timestamps
+ts_utc = str.format_time(time, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+ts_et  = str.format_time(time, "yyyy-MM-dd'T'HH:mm:ssXXX", TZ)
+alert_id = "evt_" + ts_utc + "_" + syminfo.ticker + "_" + timeframe.period + "_" + primarySetupType
+
+// Final JSON payload (single line — TradingView alert messages have a 4096-char limit)
+buildPayload() =>
+    s = "{"
+    s := s + "\"schema_version\":\"1.0\","
+    s := s + "\"alert_id\":" + fmtStr(alert_id) + ","
+    s := s + "\"timestamp_utc\":" + fmtStr(ts_utc) + ","
+    s := s + "\"timestamp_et\":" + fmtStr(ts_et) + ","
+    s := s + "\"symbol\":" + fmtStr(syminfo.ticker) + ","
+    s := s + "\"timeframe\":" + fmtStr(timeframe.period) + ","
+    s := s + "\"setup_type\":" + fmtStr(primarySetupType) + ","
+    s := s + "\"setup_name\":" + fmtStr(primarySetupName) + ","
+    s := s + "\"grade\":" + fmtStr(grade) + ","
+    s := s + "\"grade_points\":" + fmtFloat2(gradePoints) + ","
+    s := s + "\"direction\":" + fmtStr(direction) + ","
+    s := s + "\"price\":" + fmtFloat(close) + ","
+    s := s + "\"stop_price\":" + fmtFloat(stopPrice) + ","
+    s := s + "\"stop_distance_points\":" + fmtFloat(stopDistPts) + ","
+    s := s + "\"stop_distance_dollars_per_contract\":" + fmtFloat2(stopDistDollars) + ","
+    s := s + "\"target_1\":" + fmtFloat(target1) + ","
+    s := s + "\"target_2\":" + fmtFloat(target2) + ","
+    s := s + "\"target_1_dollars_per_contract\":" + fmtFloat2(t1DistDollars) + ","
+    s := s + "\"level\":{"
+    s := s + "\"type\":" + fmtStr(primaryLevelName) + ","
+    s := s + "\"price\":" + fmtFloat(primaryLevelPrice) + ","
+    s := s + "\"freshness_bars\":" + str.tostring(primaryLevelFresh)
+    s := s + "},"
+    s := s + "\"volume\":{"
+    s := s + "\"bull_pct\":" + str.tostring(math.round(bullPct)) + ","
+    s := s + "\"bear_pct\":" + str.tostring(math.round(bearPct)) + ","
+    s := s + "\"bar_volume_vs_20avg\":" + fmtFloat2(volRatio) + ","
+    s := s + "\"flip_detected\":" + fmtBool(bvbFlipPast2Bars)
+    s := s + "},"
+    s := s + "\"confluences\":" + buildConfluencesArr() + ","
+    s := s + "\"correlation_check\":" + buildCorrelationBlock() + ","
+    s := s + "\"session\":{"
+    s := s + "\"window\":" + fmtStr(sessionWindow) + ","
+    s := s + "\"ict_zone\":" + fmtStr(ictZone) + ","
+    s := s + "\"is_friday_pm\":" + fmtBool(isFridayPm) + ","
+    s := s + "\"in_release_window\":false"
+    s := s + "},"
+    s := s + "\"playbook_checklist\":{"
+    s := s + "\"confluence_2plus_tools\":" + fmtBool(overlapCount >= 1 or biasD_agrees or bias4_agrees) + ","
+    s := s + "\"zone_fresh\":" + fmtBool(setupBDirFired ? setupB_extraFresh : true) + ","
+    s := s + "\"htf_bias_agrees\":" + fmtBool(biasD_agrees or bias4_agrees) + ","
+    s := s + "\"confirmation_present\":" + fmtBool(direction == "long" ? longRejection : shortRejection) + ","
+    s := s + "\"stop_at_structural\":true,"
+    s := s + "\"rr_min_1p5\":" + fmtBool(rrMeets1p5) + ","
+    s := s + "\"no_release_within_15min\":true,"
+    s := s + "\"not_first_5_min\":" + fmtBool(not inOpeningSuppress) + ","
+    s := s + "\"daily_loss_limit_ok\":null"
+    s := s + "},"
+    s := s + "\"notes\":\"\""
+    s := s + "}"
+    s
+
+
+// ============================================================================
+// SECTION 17 — ALERT EMISSION (Spec §"Build sequence" step 10)
+// ============================================================================
+
+shouldFire = anyFired and not suppressed and grade != "C"
+
+if shouldFire and barstate.isconfirmed
+    payload = buildPayload()
+    alert(payload, alert.freq_once_per_bar_close)
+    // Update cooldown bar markers
+    if primarySetupType == "A"
+        lastFireBar_A := bar_index
+    if primarySetupType == "B"
+        lastFireBar_B := bar_index
+    if primarySetupType == "C"
+        lastFireBar_C := bar_index
+    if primarySetupType == "E"
+        lastFireBar_E := bar_index
+    // Optional debug label on chart
+    if i_debugLabels
+        lblTxt = primarySetupType + " " + grade + " " + direction + "\n" + str.tostring(gradePoints, "#.#") + " pts"
+        lblColor = grade == "A+" ? color.new(color.green, 0) : grade == "A" ? color.new(color.lime, 0) : color.new(color.yellow, 0)
+        label.new(bar_index, direction == "long" ? low : high, lblTxt, style=direction == "long" ? label.style_label_up : label.style_label_down, color=lblColor, textcolor=color.black, size=size.small)
+
+
+// ============================================================================
+// SECTION 18 — VISUAL HELPERS (optional — drawing on chart)
+// ============================================================================
+
+// Plot daily / weekly key levels for visual context
+plot(i_drawLevels ? pdh   : na, "PDH",          color=color.new(color.red,   30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? pdl   : na, "PDL",          color=color.new(color.green, 30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? weekH : na, "Weekly High",  color=color.new(color.purple,30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? weekL : na, "Weekly Low",   color=color.new(color.purple,30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? onHigh: na, "ON High",      color=color.new(color.orange,30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? onLow : na, "ON Low",       color=color.new(color.orange,30), linewidth=1, style=plot.style_circles)
+plot(i_drawLevels ? todayRthOpen : na, "RTH Open", color=color.new(color.blue, 30), linewidth=1, style=plot.style_circles)
+
+// Plot last 1H and 4H pivots
+plotshape(i_drawPivots and not na(ph1_raw), title="1H Pivot High", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+plotshape(i_drawPivots and not na(pl1_raw), title="1H Pivot Low",  style=shape.triangleup,   location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(i_drawPivots and not na(ph4_raw), title="4H Pivot High", style=shape.triangledown, location=location.abovebar, color=color.new(color.maroon, 0), size=size.small)
+plotshape(i_drawPivots and not na(pl4_raw), title="4H Pivot Low",  style=shape.triangleup,   location=location.belowbar, color=color.new(color.teal, 0), size=size.small)
+
+// Diagnostic table (top-right) — gives a live readout of grade + key state.
+// Useful during the 30-day validation phase before n8n is wired up.
+var table diag = table.new(position.top_right, 2, 9, border_width=1)
+if barstate.islast
+    table.cell(diag, 0, 0, "Asset",     text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 0, activeAsset,                            text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 1, "Session",   text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 1, sessionWindow,                          text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 2, "Daily bias",text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 2, dailyBullTrend ? "BULL" : dailyBearTrend ? "BEAR" : "RANGE", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 3, "4H bias",   text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 3, h4BullTrend ? "BULL" : h4BearTrend ? "BEAR" : "RANGE", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 4, "Bull %",    text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 4, str.tostring(math.round(bullPct)) + "%", text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 5, "Vol ratio", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 5, str.tostring(volRatio, "#.##"),         text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 6, "Active zones", text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 6, str.tostring(array.size(zoneArr)),      text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 7, "Last grade",   text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 7, grade,                                  text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 8, "Last points",  text_color=color.white, bgcolor=color.new(color.gray, 50))
+    table.cell(diag, 1, 8, str.tostring(gradePoints, "#.#"),       text_color=color.white, bgcolor=color.new(color.gray, 80))
+
+
+// ============================================================================
+// SECTION 19 — RESERVED FOR SETUP D (v1.1, deferred)
+// ============================================================================
+// Setup D — VIX/NQ divergence scalp (Spec §3 Setup D) would slot in here as a
+// new evaluation block parallel to Sections 8–11. It requires:
+//   - 5-min VIX feed (already loaded above as vix_close on chart TF — switch
+//     to fixed "5" timeframe security call)
+//   - 5-bar Pearson correlation on close ≤ -0.7 over the 5min
+//   - NQ at a key level (Setup A logic) OR at a pivot (Setup C logic)
+//   - VIX at its own opposing key level (would need separate VIX-side level
+//     computation block — pull PDH/PDL/ONH/ONL of VIX itself via additional
+//     request.security calls)
+//   - Position-sizing tag "D_scalp" in payload + fixed $200/$320 targets
+// Stop placement: 1× ATR(5min), capped at 10 NQ points (Spec §5).
+// Confluence: overrides daily bias (Spec §3 Setup D).
+// Cooldown: shorter than other setups since it's a scalp pattern.
+// ============================================================================
+
+// END OF FILE

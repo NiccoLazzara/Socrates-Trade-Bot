@@ -1,5 +1,5 @@
 // ============================================================================
-//  SOCRATES CONFLUENCE ALERT ENGINE — v1.0.1
+//  SOCRATES CONFLUENCE ALERT ENGINE — v1.0.2
 //  Pine Script v5
 //
 //  Implements: Setups A, B, C, E from socrates_rules_spec.md v1.0
@@ -17,13 +17,14 @@
 //  (Other intraday timeframes work but 5m is the spec's primary entry TF.)
 //
 //  Revision history:
+//    v1.0.2 — diagnostic table shows running A+/A/B/C alert counts
 //    v1.0.1 — emit C-grade alerts for Supabase backtest corpus (ADR D1)
 //    v1.0   — initial release: Setups A, B, C, E
 // ============================================================================
 
 //@version=5
 indicator(
-   title              = "Socrates Confluence Alert Engine v1.0.1",
+   title              = "Socrates Confluence Alert Engine v1.0.2",
    shorttitle         = "SCAE_v1",
    overlay            = true,
    max_boxes_count    = 500,
@@ -1189,6 +1190,30 @@ if shouldFire and barstate.isconfirmed
 
 
 // ============================================================================
+// SECTION 17B — GRADE COUNTERS (added v1.0.2)
+// ============================================================================
+// Running counts of would-have-fired alerts per grade, across all loaded
+// chart history. Displayed in the diagnostic table for at-a-glance sanity-
+// checking during the 30-day validation phase. C-grade is included — those
+// alerts ARE emitted in v1.0.1+ (Pine fires; n8n logs to Supabase, no Telegram).
+
+var int count_Aplus = 0
+var int count_A     = 0
+var int count_B     = 0
+var int count_C     = 0
+
+if shouldFire and barstate.isconfirmed
+    if grade == "A+"
+        count_Aplus := count_Aplus + 1
+    else if grade == "A"
+        count_A := count_A + 1
+    else if grade == "B"
+        count_B := count_B + 1
+    else if grade == "C"
+        count_C := count_C + 1
+
+
+// ============================================================================
 // SECTION 18 — VISUAL HELPERS (optional — drawing on chart)
 // ============================================================================
 
@@ -1209,7 +1234,7 @@ plotshape(i_drawPivots and not na(pl4_raw), title="4H Pivot Low",  style=shape.t
 
 // Diagnostic table (top-right) — gives a live readout of grade + key state.
 // Useful during the 30-day validation phase before n8n is wired up.
-var table diag = table.new(position.top_right, 2, 9, border_width=1)
+var table diag = table.new(position.top_right, 2, 13, border_width=1)
 if barstate.islast
     table.cell(diag, 0, 0, "Asset",     text_color=color.white, bgcolor=color.new(color.gray, 50))
     table.cell(diag, 1, 0, activeAsset,                            text_color=color.white, bgcolor=color.new(color.gray, 80))
@@ -1229,6 +1254,14 @@ if barstate.islast
     table.cell(diag, 1, 7, grade,                                  text_color=color.white, bgcolor=color.new(color.gray, 80))
     table.cell(diag, 0, 8, "Last points",  text_color=color.white, bgcolor=color.new(color.gray, 50))
     table.cell(diag, 1, 8, str.tostring(gradePoints, "#.#"),       text_color=color.white, bgcolor=color.new(color.gray, 80))
+    table.cell(diag, 0, 9, "A+ count",     text_color=color.white, bgcolor=color.new(color.green, 50))
+    table.cell(diag, 1, 9, str.tostring(count_Aplus),              text_color=color.white, bgcolor=color.new(color.green, 80))
+    table.cell(diag, 0, 10,"A count",      text_color=color.white, bgcolor=color.new(color.blue,  50))
+    table.cell(diag, 1, 10,str.tostring(count_A),                  text_color=color.white, bgcolor=color.new(color.blue,  80))
+    table.cell(diag, 0, 11,"B count",      text_color=color.white, bgcolor=color.new(color.gray,  50))
+    table.cell(diag, 1, 11,str.tostring(count_B),                  text_color=color.white, bgcolor=color.new(color.gray,  80))
+    table.cell(diag, 0, 12,"C count",      text_color=color.white, bgcolor=color.new(color.red,   50))
+    table.cell(diag, 1, 12,str.tostring(count_C),                  text_color=color.white, bgcolor=color.new(color.red,   80))
 
 
 // ============================================================================

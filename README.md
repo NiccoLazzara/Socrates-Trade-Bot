@@ -59,7 +59,7 @@ socrates-confluence-engine/
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Rules spec | v1.0 — complete | `docs/socrates_rules_spec.md` |
-| Pine Script | v1.0.1 — complete | Setups A, B, C, E. C-grade alerts emitted for Supabase backtest corpus. Setup D (VIX/NQ scalp) deferred to v1.1. |
+| Pine Script | v1.0.2 — complete | Setups A, B, C, E. C-grade emitted for Supabase backtest corpus. Diagnostic table shows running A+/A/B/C counts across loaded chart history. Setup D (VIX/NQ scalp) deferred to v1.1. |
 | n8n workflow | v1 — JSON drafted | 11 nodes, exported to `n8n-workflows/`. Awaiting import + credentials + smoke test. See `docs/n8n-setup.md`. |
 | Supabase schema | applied | `socrates.alerts` + `socrates.release_calendar` live in LPI Website Storage. Migration committed at `supabase/migrations/0001_socrates_initial.sql`. |
 | Telegram bot | active | `LPI Socrates alerts bot` posts to `Socrates Signals` channel. Wiring to n8n happens via credential step. |

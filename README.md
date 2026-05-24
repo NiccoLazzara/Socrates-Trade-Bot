@@ -62,6 +62,8 @@ socrates-confluence-engine/
 - Confluence grading: spec §9
 - Volume veto: spec §10
 - Pine source: [`pine-scripts/socrates_confluence_alert_engine_v1.pine`](pine-scripts/socrates_confluence_alert_engine_v1.pine)
+- n8n workflow architecture: [`docs/architecture/n8n-workflow.md`](docs/architecture/n8n-workflow.md)
+- Design decisions (ADRs): [`docs/decisions/`](docs/decisions/)
 
 ## Conventions
 

@@ -45,6 +45,9 @@
 //  (Other intraday timeframes work but 5m is the spec's primary entry TF.)
 //
 //  Revision history (lite variant tracks full version's history):
+//    v1.0.2-lite.1 — swapped CBOE:VIX → TVC:VIX, COMEX:SI1! → TVC:SILVER
+//                    (TVC sources free on all plans; alert save no longer
+//                    blocked on CBOE Real-Time or COMEX-specific data subs)
 //    v1.0.2-lite — forked from v1.0.2; SPY/NVDA/QQQ correlations stubbed
 //    v1.0.2 — diagnostic table shows running A+/A/B/C alert counts
 //    v1.0.1 — emit C-grade alerts for Supabase backtest corpus (ADR D1)
@@ -137,13 +140,19 @@ i_corrPosThresh    = input.float(0.6,  "Positive correlation threshold", minval=
 i_corrNegThresh    = input.float(-0.6, "Negative correlation threshold", minval=-1.0, maxval=-0.3, step=0.05, group=g_corr)
 
 // ----- Correlated symbols (Spec §8) -----
-// LITE: SPY/NVDA/QQQ inputs removed — no NYSE Arca or NASDAQ real-time
-// data subscription needed. Symbols below all work on CME Group bundle
-// + free TradingView defaults (CBOE indices, TVC).
+// LITE: SPY/NVDA/QQQ inputs removed (no NYSE Arca or NASDAQ data sub).
+// LITE: VIX and SI defaults swapped to TVC variants which are free on
+// all TradingView plans — CBOE:VIX requires a separate CBOE Real-Time
+// subscription (not part of CME Group bundle), and COMEX:SI1! can
+// sometimes still error during alert save even when COMEX is covered.
+// TVC:VIX and TVC:SILVER are TradingView's own continuous index feeds
+// with effectively identical price data — correlation calcs come out
+// the same. Override in the indicator settings panel if you ever
+// activate the paid feeds.
 g_sym = "Correlated Symbols (Spec §8)"
-i_sym_VIX  = input.symbol("CBOE:VIX",      "VIX symbol  (NQ/ES inverse pair)", group=g_sym)
+i_sym_VIX  = input.symbol("TVC:VIX",       "VIX symbol  (NQ/ES inverse pair)", group=g_sym)
 i_sym_DXY  = input.symbol("TVC:DXY",       "DXY symbol  (GC inverse pair)", group=g_sym)
-i_sym_SI   = input.symbol("COMEX:SI1!",    "SI symbol   (GC positive pair)", group=g_sym)
+i_sym_SI   = input.symbol("TVC:SILVER",    "SI symbol   (GC positive pair)", group=g_sym)
 
 // ----- Grading thresholds (Spec §9) -----
 g_grade = "Confluence Grade Thresholds (Spec §9)"

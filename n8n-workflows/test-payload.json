@@ -57,5 +57,5 @@
     "not_first_5_min": true,
     "daily_loss_limit_ok": null
   },
-  "notes": "smoke test payload — safe to delete after verification"
+  "notes": "smoke test payload - safe to delete after verification"
 }

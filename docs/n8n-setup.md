@@ -146,12 +146,14 @@ Save the script. The next bar close should fire the test alert through the full 
 In PowerShell (replace `<your-secret>`):
 
 ```powershell
-$body = Get-Content -Raw -Path "C:\Users\nlazz\Projects\socrates-confluence-engine\n8n-workflows\test-payload.json"
+$body = Get-Content -Raw -Encoding UTF8 -Path "C:\Users\nlazz\Projects\socrates-confluence-engine\n8n-workflows\test-payload.json"
 Invoke-RestMethod -Method Post `
   -Uri "https://lpinvestments.app.n8n.cloud/webhook/socrates/alert?token=<your-secret>" `
-  -ContentType "application/json" `
+  -ContentType "application/json; charset=utf-8" `
   -Body $body
 ```
+
+> **Windows PowerShell 5.1 encoding gotcha.** Without `-Encoding UTF8`, `Get-Content` reads files using the system codepage (usually Windows-1252), which mangles any non-ASCII chars. Always pass `-Encoding UTF8` when reading JSON/YAML/UTF-8 files for HTTP bodies.
 
 (Create `n8n-workflows/test-payload.json` from the JSON shown in Option A — same payload, just save it as a file.)
 

@@ -37,12 +37,21 @@ socrates-confluence-engine/
 ├── docs/
 │   ├── Socrates_Investments_Playbook.docx   # original playbook
 │   ├── socrates_rules_spec.md               # mechanical spec v1.0 — source of truth
+│   ├── n8n-setup.md                         # import + credentials walkthrough
+│   ├── architecture/
+│   │   └── n8n-workflow.md                  # node graph, schema, failure modes
+│   ├── decisions/
+│   │   └── 0001-chat-3-decisions.md         # ADR log for Chat #3
 │   └── transcripts/                         # source transcripts (00, 01, 02, 04, 05)
 ├── pine-scripts/
 │   └── socrates_confluence_alert_engine_v1.pine
-├── n8n-workflows/                           # exported workflow JSON (credential-stripped)
-├── supabase/                                # SQL migrations + table definitions
-└── telegram-bot/                            # bot source (chat formatter)
+├── n8n-workflows/
+│   ├── socrates-alert-receiver.v1.json      # workflow export (credential-stripped)
+│   └── test-payload.json                    # smoke-test JSON for curl + Pine alert()
+├── supabase/
+│   └── migrations/
+│       └── 0001_socrates_initial.sql        # schema socrates + alerts + release_calendar
+└── telegram-bot/                            # reserved (no standalone bot in v1)
 ```
 
 ## Build status
@@ -51,9 +60,9 @@ socrates-confluence-engine/
 |-----------|--------|-------|
 | Rules spec | v1.0 — complete | `docs/socrates_rules_spec.md` |
 | Pine Script | v1.0.1 — complete | Setups A, B, C, E. C-grade alerts emitted for Supabase backtest corpus. Setup D (VIX/NQ scalp) deferred to v1.1. |
-| n8n workflow | in progress (Chat #3) | Webhook receiver → Supabase log → Telegram split-by-grade |
-| Supabase schema | not started | `alerts` and `release_calendar` tables |
-| Telegram bot | not started | Bot account not yet created |
+| n8n workflow | v1 — JSON drafted | 11 nodes, exported to `n8n-workflows/`. Awaiting import + credentials + smoke test. See `docs/n8n-setup.md`. |
+| Supabase schema | applied | `socrates.alerts` + `socrates.release_calendar` live in LPI Website Storage. Migration committed at `supabase/migrations/0001_socrates_initial.sql`. |
+| Telegram bot | active | `LPI Socrates alerts bot` posts to `Socrates Signals` channel. Wiring to n8n happens via credential step. |
 
 ## Key references
 
@@ -63,6 +72,9 @@ socrates-confluence-engine/
 - Volume veto: spec §10
 - Pine source: [`pine-scripts/socrates_confluence_alert_engine_v1.pine`](pine-scripts/socrates_confluence_alert_engine_v1.pine)
 - n8n workflow architecture: [`docs/architecture/n8n-workflow.md`](docs/architecture/n8n-workflow.md)
+- n8n setup walkthrough: [`docs/n8n-setup.md`](docs/n8n-setup.md)
+- n8n workflow export: [`n8n-workflows/socrates-alert-receiver.v1.json`](n8n-workflows/socrates-alert-receiver.v1.json)
+- Supabase schema: [`supabase/migrations/0001_socrates_initial.sql`](supabase/migrations/0001_socrates_initial.sql)
 - Design decisions (ADRs): [`docs/decisions/`](docs/decisions/)
 
 ## Conventions
@@ -75,5 +87,6 @@ socrates-confluence-engine/
 ## Infra
 
 - **n8n:** `lpinvestments.app.n8n.cloud`
-- **Supabase:** managed via Supabase MCP
-- **Telegram:** bot account TBD (Chat #3)
+- **Supabase:** `LPI Website Storage` (ref `rotfkasubwpgzlqmlclt`), schema `socrates`, managed via Supabase MCP
+- **Telegram:** bot `LPI Socrates alerts bot`, channel `Socrates Signals` (private)
+- **GitHub:** [`NiccoLazzara/Socrates-Trade-Bot`](https://github.com/NiccoLazzara/Socrates-Trade-Bot) (private)

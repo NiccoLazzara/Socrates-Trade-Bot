@@ -1,0 +1,359 @@
+{
+  "name": "Socrates Alert Receiver v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "socrates/alert",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "X-Socrates-Receiver",
+                "value": "v1"
+              }
+            ]
+          }
+        }
+      },
+      "id": "node-webhook-001",
+      "name": "Webhook (TradingView)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "socrates-alert"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// ============================================================\n// Validate token + schema_version + required payload fields.\n// Throws on invalid input — n8n returns 500 to TradingView.\n// On success: passes the parsed payload as $json downstream.\n// ============================================================\n\nconst EXPECTED_TOKEN = $env.SOCRATES_WEBHOOK_TOKEN;\nif (!EXPECTED_TOKEN) {\n  throw new Error('SOCRATES_WEBHOOK_TOKEN env var is not set in n8n');\n}\n\nconst item   = $input.item.json;\nconst query  = item.query  || {};\nconst body   = item.body   || item;          // n8n may flatten\n\n// 1. Auth\nif (query.token !== EXPECTED_TOKEN) {\n  throw new Error('401: invalid or missing ?token query param');\n}\n\n// 2. Schema version\nif (body.schema_version !== '1.0') {\n  throw new Error(`400: unsupported schema_version: ${body.schema_version}`);\n}\n\n// 3. Required fields\nconst required = [\n  'alert_id', 'timestamp_utc', 'timestamp_et', 'symbol', 'timeframe',\n  'setup_type', 'grade', 'direction', 'price', 'stop_price'\n];\nfor (const k of required) {\n  if (body[k] === undefined || body[k] === null) {\n    throw new Error(`400: missing required field: ${k}`);\n  }\n}\n\n// 4. Grade sanity\nif (!['A+', 'A', 'B', 'C'].includes(body.grade)) {\n  throw new Error(`400: invalid grade: ${body.grade}`);\n}\n\nreturn { json: body };\n"
+      },
+      "id": "node-validate-002",
+      "name": "Validate & Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into socrates.alerts (\n  alert_id, schema_version, ts_utc, ts_et,\n  symbol, timeframe, setup_type, setup_name,\n  grade, grade_points, direction, price,\n  stop_price, stop_distance_points, stop_distance_dollars_per_contract,\n  target_1, target_2, target_1_dollars_per_contract,\n  level, volume, confluences, correlation_check,\n  session, playbook_checklist, notes\n) values (\n  $1, $2, $3::timestamptz, $4::timestamptz,\n  $5, $6, $7, $8,\n  $9, $10::numeric, $11, $12::numeric,\n  $13::numeric, $14::numeric, $15::numeric,\n  $16::numeric, $17::numeric, $18::numeric,\n  $19::jsonb, $20::jsonb, $21::text[], $22::jsonb,\n  $23::jsonb, $24::jsonb, $25\n)\non conflict (alert_id) do nothing\nreturning alert_id, grade, ts_et, (xmax = 0) as is_new;",
+        "options": {
+          "queryReplacement": "={{ $json.alert_id }},{{ $json.schema_version }},{{ $json.timestamp_utc }},{{ $json.timestamp_et }},{{ $json.symbol }},{{ $json.timeframe }},{{ $json.setup_type }},{{ $json.setup_name }},{{ $json.grade }},{{ $json.grade_points }},{{ $json.direction }},{{ $json.price }},{{ $json.stop_price }},{{ $json.stop_distance_points }},{{ $json.stop_distance_dollars_per_contract }},{{ $json.target_1 }},{{ $json.target_2 }},{{ $json.target_1_dollars_per_contract }},{{ JSON.stringify($json.level) }},{{ JSON.stringify($json.volume) }},{{ '{' + ($json.confluences || []).join(',') + '}' }},{{ JSON.stringify($json.correlation_check) }},{{ JSON.stringify($json.session) }},{{ JSON.stringify($json.playbook_checklist) }},{{ $json.notes || '' }}"
+        }
+      },
+      "id": "node-upsert-003",
+      "name": "Upsert into socrates.alerts",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [680, 300],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Supabase — LPI Website Storage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-is-new",
+              "leftValue": "={{ $json.is_new }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-new-004",
+      "name": "IF is_new (drop duplicates)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select exists (\n  select 1 from socrates.release_calendar\n  where release_date    =  ($1::timestamptz at time zone 'America/New_York')::date\n    and release_time_et between\n        (($1::timestamptz at time zone 'America/New_York')::time - interval '15 minutes')\n    and (($1::timestamptz at time zone 'America/New_York')::time + interval '15 minutes')\n) as in_release_window;",
+        "options": {
+          "queryReplacement": "={{ $json.ts_et }}"
+        }
+      },
+      "id": "node-release-005",
+      "name": "Check release window",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1120, 220],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Supabase — LPI Website Storage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// Merge the upsert result + release window check + original payload\n// from the Validate step into a single object for downstream nodes.\n\nconst upsert   = $('Upsert into socrates.alerts').item.json;  // {alert_id, grade, ts_et, is_new}\nconst release  = $input.item.json;                            // {in_release_window: bool}\nconst payload  = $('Validate & Auth').item.json;              // full alert payload\n\nconst inRelease  = release.in_release_window === true;\nconst gradeIsC   = upsert.grade === 'C';\nconst shouldSend = !inRelease && !gradeIsC;\n\nreturn {\n  json: {\n    ...payload,\n    _alert_id: upsert.alert_id,\n    _in_release_window: inRelease,\n    _grade_is_c: gradeIsC,\n    _should_send_telegram: shouldSend\n  }\n};\n"
+      },
+      "id": "node-merge-006",
+      "name": "Merge state + decide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-should-send",
+              "leftValue": "={{ $json._should_send_telegram }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-if-send-007",
+      "name": "IF should send Telegram",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 220]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "// ============================================================\n// Build Telegram message body (HTML mode — minimal escaping).\n// Grade dictates emoji + notification settings downstream.\n// ============================================================\n\nconst p = $input.item.json;\n\nfunction esc(s) {\n  if (s === undefined || s === null) return '';\n  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\nfunction fmtNum(n, dp = 2) {\n  return typeof n === 'number' ? n.toFixed(dp) : esc(n);\n}\n\nconst emoji = ({ 'A+': '🟢', 'A': '🔵', 'B': '⚪' })[p.grade] || '·';\nconst dirArrow = p.direction === 'long' ? '▲' : '▼';\n\nconst lines = [];\nlines.push(`${emoji} <b>${esc(p.symbol)}</b> · <b>${esc(p.grade)}</b> · ${dirArrow} ${esc(p.direction.toUpperCase())} @ <code>${fmtNum(p.price)}</code>`);\nlines.push(`<i>Setup ${esc(p.setup_type)} — ${esc(p.setup_name || '')}</i>`);\nlines.push('');\nlines.push(`<b>Stop</b>   <code>${fmtNum(p.stop_price)}</code>   (${fmtNum(p.stop_distance_points)} pts · $${fmtNum(p.stop_distance_dollars_per_contract)}/contract)`);\nif (p.target_1 !== null && p.target_1 !== undefined) {\n  lines.push(`<b>T1</b>     <code>${fmtNum(p.target_1)}</code>   ($${fmtNum(p.target_1_dollars_per_contract)}/contract)`);\n}\nif (p.target_2 !== null && p.target_2 !== undefined) {\n  lines.push(`<b>T2</b>     <code>${fmtNum(p.target_2)}</code>`);\n}\nlines.push('');\nif (p.confluences && p.confluences.length) {\n  lines.push(`<b>Confluences:</b> ${esc(p.confluences.join(', '))}`);\n}\nif (p.volume) {\n  lines.push(`<b>Vol:</b> bull ${esc(p.volume.bull_pct)} / bear ${esc(p.volume.bear_pct)} · ${fmtNum(p.volume.bar_volume_vs_20avg)}× 20-bar avg${p.volume.flip_detected ? ' · flip' : ''}`);\n}\nif (p.session) {\n  lines.push(`<b>Session:</b> ${esc(p.session.window)} · ${esc(p.session.ict_zone || '')}`);\n}\nlines.push('');\nlines.push(`<code>${esc(p.alert_id)}</code>`);\n\nconst silent = p.grade === 'B';\nconst chatId = $env.SOCRATES_TELEGRAM_CHAT_ID || '-1003961335144';\n\nreturn {\n  json: {\n    _alert_id: p._alert_id,\n    _chat_id: chatId,\n    _text: lines.join('\\n'),\n    _silent: silent,\n    _parse_mode: 'HTML'\n  }\n};\n"
+      },
+      "id": "node-format-008",
+      "name": "Format Telegram message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 140]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json._chat_id }}",
+        "text": "={{ $json._text }}",
+        "additionalFields": {
+          "disable_notification": "={{ $json._silent }}",
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "node-telegram-009",
+      "name": "Telegram sendMessage",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2000, 140],
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CRED_ID",
+          "name": "Socrates Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update socrates.alerts\n   set delivered_to_telegram = true,\n       telegram_message_id   = $2::bigint\n where alert_id = $1\nreturning alert_id, telegram_message_id;",
+        "options": {
+          "queryReplacement": "={{ $('Merge state + decide').item.json._alert_id }},{{ $json.message_id }}"
+        }
+      },
+      "id": "node-update-010",
+      "name": "Mark delivered_to_telegram",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [2220, 140],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Supabase — LPI Website Storage"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update socrates.alerts\n   set release_window_check = true\n where alert_id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Merge state + decide').item.json._alert_id }}"
+        }
+      },
+      "id": "node-update-rel-011",
+      "name": "Mark release_window_check (suppressed)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1780, 320],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CRED_ID",
+          "name": "Supabase — LPI Website Storage"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook (TradingView)": {
+      "main": [
+        [
+          {
+            "node": "Validate & Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Auth": {
+      "main": [
+        [
+          {
+            "node": "Upsert into socrates.alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert into socrates.alerts": {
+      "main": [
+        [
+          {
+            "node": "IF is_new (drop duplicates)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF is_new (drop duplicates)": {
+      "main": [
+        [
+          {
+            "node": "Check release window",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Check release window": {
+      "main": [
+        [
+          {
+            "node": "Merge state + decide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge state + decide": {
+      "main": [
+        [
+          {
+            "node": "IF should send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF should send Telegram": {
+      "main": [
+        [
+          {
+            "node": "Format Telegram message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark release_window_check (suppressed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram message": {
+      "main": [
+        [
+          {
+            "node": "Telegram sendMessage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram sendMessage": {
+      "main": [
+        [
+          {
+            "node": "Mark delivered_to_telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionTimeout": 60
+  },
+  "active": false,
+  "versionId": "v1.0.0",
+  "meta": {
+    "instanceId": "lpinvestments",
+    "description": "Receives TradingView Pine webhooks for the Socrates Confluence Alert Engine. Validates, dedupes, persists every event to socrates.alerts, suppresses inside news windows, and posts A+/A/B grades to the Socrates Signals Telegram channel. C-grade is DB-only.",
+    "spec": "docs/socrates_rules_spec.md v1.0",
+    "architecture": "docs/architecture/n8n-workflow.md"
+  },
+  "tags": [
+    { "name": "socrates" },
+    { "name": "alerts" },
+    { "name": "production" }
+  ]
+}

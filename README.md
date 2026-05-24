@@ -50,7 +50,7 @@ socrates-confluence-engine/
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Rules spec | v1.0 — complete | `docs/socrates_rules_spec.md` |
-| Pine Script | v1.0 — complete | Setups A, B, C, E. Setup D (VIX/NQ scalp) deferred to v1.1. |
+| Pine Script | v1.0.1 — complete | Setups A, B, C, E. C-grade alerts emitted for Supabase backtest corpus. Setup D (VIX/NQ scalp) deferred to v1.1. |
 | n8n workflow | in progress (Chat #3) | Webhook receiver → Supabase log → Telegram split-by-grade |
 | Supabase schema | not started | `alerts` and `release_calendar` tables |
 | Telegram bot | not started | Bot account not yet created |

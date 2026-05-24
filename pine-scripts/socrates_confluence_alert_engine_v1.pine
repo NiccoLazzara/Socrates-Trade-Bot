@@ -1,5 +1,5 @@
 // ============================================================================
-//  SOCRATES CONFLUENCE ALERT ENGINE — v1.0
+//  SOCRATES CONFLUENCE ALERT ENGINE — v1.0.1
 //  Pine Script v5
 //
 //  Implements: Setups A, B, C, E from socrates_rules_spec.md v1.0
@@ -10,15 +10,20 @@
 //  can be tuned in TradingView's settings panel without editing code.
 //
 //  Output: JSON payload matching Appendix A of the spec, emitted via
-//  alert(..., alert.freq_once_per_bar_close) when grade != "C".
+//  alert(..., alert.freq_once_per_bar_close) on every confirmed setup.
+//  n8n splits by grade for routing (A+/A/B → Telegram; C → Supabase only).
 //
 //  Run on: 5-minute chart of NQ1!, MNQ1!, ES1!, MES1!, GC1!, or MGC1!.
 //  (Other intraday timeframes work but 5m is the spec's primary entry TF.)
+//
+//  Revision history:
+//    v1.0.1 — emit C-grade alerts for Supabase backtest corpus (ADR D1)
+//    v1.0   — initial release: Setups A, B, C, E
 // ============================================================================
 
 //@version=5
 indicator(
-   title              = "Socrates Confluence Alert Engine v1.0",
+   title              = "Socrates Confluence Alert Engine v1.0.1",
    shorttitle         = "SCAE_v1",
    overlay            = true,
    max_boxes_count    = 500,
@@ -1162,7 +1167,7 @@ buildPayload() =>
 // SECTION 17 — ALERT EMISSION (Spec §"Build sequence" step 10)
 // ============================================================================
 
-shouldFire = anyFired and not suppressed and grade != "C"
+shouldFire = anyFired and not suppressed
 
 if shouldFire and barstate.isconfirmed
     payload = buildPayload()

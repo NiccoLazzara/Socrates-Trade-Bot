@@ -58,16 +58,25 @@ If your n8n plan doesn't have a Variables panel, you can hardcode them in the **
 
 ## 4. Create the Postgres credential (Supabase)
 
-In Supabase dashboard → `LPI Website Storage` → **Project Settings** → **Database** → **Connection string** section. Use the **Session pooler** (IPv4 compatible) connection:
+In Supabase dashboard → `LPI Website Storage` → top of page click **Connect** → **Direct** tab → scroll to the **SHARED POOLER** (Session pooler, IPv4-compatible) section:
 
 ```
-Host:      aws-0-us-east-1.pooler.supabase.com
+Host:      aws-1-us-east-1.pooler.supabase.com   ← shard number varies, use what your Connect modal shows
 Port:      5432
 Database:  postgres
 User:      postgres.rotfkasubwpgzlqmlclt
-Password:  <your Supabase DB password — same one you use in your other LPI projects>
+Password:  <your Supabase DB password — see "Finding the password" below>
 SSL:       Require
 ```
+
+> **Pooler hostname varies.** Supabase assigns each project to a pooler shard (`aws-0-...`, `aws-1-...`, etc.). Use the exact host string from your Connect modal — don't copy from this doc verbatim.
+
+### Finding the password
+
+The Connect modal shows `[YOUR-PASSWORD]` as a literal placeholder, not the actual password. To get it:
+
+1. **Check first** (avoids breaking anything): your password manager / saved notes / `.env` file in the LPI Website Storage app codebase
+2. **Reset as last resort**: Supabase dashboard → Project Settings → (in newer UI: somewhere under Database / Connect) → Reset database password. ⚠️ This breaks any other service currently connected to LPI Website Storage with the old password until you update those too.
 
 In n8n:
 
